@@ -10,8 +10,8 @@
   "dependencies": {
     "@cryptorsi/shared": "workspace:*",
     "@cryptorsi/indicators": "workspace:*",
-    "@prisma/adapter-pg": "^6.0.0",
-    "@prisma/client": "^6.0.0",
+    "@prisma/adapter-pg": "^7.0.0",
+    "@prisma/client": "^7.0.0",
     "pg": "^8.13.0",
     "pino": "^9.0.0",
     "pino-pretty": "^13.0.0"

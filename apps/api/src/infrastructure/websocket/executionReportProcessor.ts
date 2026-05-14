@@ -72,7 +72,7 @@ export async function processExecutionReport(report: ExecutionReportEvent): Prom
         commission: fillCommission as number,
         commissionAsset,
         executedAt: new Date(eventTime),
-        rawEvent: report as unknown as Record<string, unknown>,
+        rawEvent: report as any,
       },
     });
 

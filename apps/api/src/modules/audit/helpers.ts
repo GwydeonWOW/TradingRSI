@@ -9,7 +9,7 @@ export async function createAuditEvent(params: {
   payload: Record<string, unknown>;
 }): Promise<{ id: string }> {
   return prisma.auditEvent.create({
-    data: params,
+    data: { ...params, payload: params.payload as any },
     select: { id: true },
   });
 }

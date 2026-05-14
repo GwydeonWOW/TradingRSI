@@ -90,7 +90,7 @@ export async function strategyRoutes(app: FastifyInstance) {
           versions: {
             create: {
               version: 1,
-              config: config as unknown as Record<string, unknown>,
+              config: config as any,
             },
           },
         },
@@ -226,7 +226,7 @@ export async function strategyRoutes(app: FastifyInstance) {
           data: {
             strategyId: id,
             version: nextVersion,
-            config: configResult.data as unknown as Record<string, unknown>,
+            config: configResult.data as any,
           },
         });
       }
@@ -288,7 +288,7 @@ export async function strategyRoutes(app: FastifyInstance) {
           versions: {
             create: {
               version: 1,
-              config: latestConfig ?? {},
+              config: (latestConfig ?? {}) as any,
             },
           },
         },

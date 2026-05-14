@@ -175,7 +175,7 @@ export async function runEvaluationCycle(): Promise<void> {
               signalId: savedSignal.id,
               decision: riskAllowed ? 'execute' : 'blocked',
               reason: riskAllowed ? 'Risk checks passed' : (!riskAllowed ? riskResult.reason : 'Unknown'),
-              riskResult: { allowed: riskResult.allowed, checks: riskResult.checks },
+              riskResult: { allowed: riskResult.allowed, checks: riskResult.checks } as any,
             },
           });
 
@@ -312,7 +312,7 @@ export async function runEvaluationCycle(): Promise<void> {
                     executedQuantity: processed.executedQty as number,
                     cumulativeQuoteQuantity: processed.cumulativeQuoteQty as number,
                     avgPrice: processed.avgPrice as number,
-                    rawResponse: orderResponse as unknown as Record<string, unknown>,
+                    rawResponse: orderResponse as any,
                   },
                 });
 
@@ -328,7 +328,7 @@ export async function runEvaluationCycle(): Promise<void> {
                       commission: fill.commission as number,
                       commissionAsset: fill.commissionAsset,
                       executedAt: new Date(orderResponse.transactTime),
-                      rawEvent: fill as unknown as Record<string, unknown>,
+                      rawEvent: fill as any,
                     },
                   });
                 }
@@ -431,7 +431,7 @@ export async function runEvaluationCycle(): Promise<void> {
                     executedQuantity: processed.executedQty as number,
                     cumulativeQuoteQuantity: processed.cumulativeQuoteQty as number,
                     avgPrice: processed.avgPrice as number,
-                    rawResponse: orderResponse as unknown as Record<string, unknown>,
+                    rawResponse: orderResponse as any,
                   },
                 });
 
@@ -447,7 +447,7 @@ export async function runEvaluationCycle(): Promise<void> {
                       commission: fill.commission as number,
                       commissionAsset: fill.commissionAsset,
                       executedAt: new Date(orderResponse.transactTime),
-                      rawEvent: fill as unknown as Record<string, unknown>,
+                      rawEvent: fill as any,
                     },
                   });
                 }
