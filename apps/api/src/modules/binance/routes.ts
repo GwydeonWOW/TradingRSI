@@ -547,6 +547,18 @@ export async function binanceRoutes(app: FastifyInstance) {
     }
   });
 
+  // GET /api/binance/streams/status
+  app.get('/api/binance/streams/status', async () => {
+    return {
+      success: true,
+      data: {
+        connected: false,
+        streams: [],
+        message: 'WebSocket streams not yet implemented',
+      },
+    };
+  });
+
   // GET /api/binance/live-readiness
   app.get('/api/binance/live-readiness', async () => {
     try {

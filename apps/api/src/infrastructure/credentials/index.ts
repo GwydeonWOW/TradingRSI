@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { prisma } from '../../infrastructure/db/prisma.js';
 import { encrypt, decrypt } from '../../infrastructure/encryption/index.js';
 import { logger } from '../../infrastructure/logger/index.js';
@@ -44,6 +45,22 @@ export async function getBinanceCredentials(environment?: string): Promise<Decry
  * Save Binance credentials to the database (encrypted).
  * Revokes any previous credentials for the same environment.
  */
+async function ensureSystemUser(): Promise<string> {
+  const userId = 'system';
+  const existing = await prisma.user.findUnique({ where: { id: userId } });
+  if (!existing) {
+    await prisma.user.create({
+      data: {
+        id: userId,
+        emailLookupHash: crypto.createHash('sha256').update('system@cryptorsi.internal').digest('hex'),
+        passwordHash: '!',
+        role: 'system',
+      },
+    });
+  }
+  return userId;
+}
+
 export async function saveBinanceCredentials(params: {
   apiKey: string;
   apiSecret: string;
@@ -62,6 +79,8 @@ export async function saveBinanceCredentials(params: {
 
   const encryptedKey = encrypt(params.apiKey);
   const encryptedSecret = encrypt(params.apiSecret);
+
+  await ensureSystemUser();
 
   const credential = await prisma.exchangeCredential.create({
     data: {
