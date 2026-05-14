@@ -59,7 +59,7 @@ export async function runEvaluationCycle(): Promise<void> {
       return;
     }
 
-    const config = strategy.versions[0]!.config as StrategyConfig;
+    const config = strategy.versions[0]!.config as unknown as StrategyConfig;
     const versionId = strategy.versions[0]!.id;
 
     // Hard guard: block live trading unless explicitly enabled

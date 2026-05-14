@@ -125,7 +125,7 @@ export async function backtestRoutes(app: FastifyInstance) {
           });
         }
         versionId = version.id;
-        config = version.config as StrategyConfig;
+        config = version.config as unknown as StrategyConfig;
       } else {
         if (strategy.versions.length === 0) {
           return reply.code(400).send({
@@ -134,7 +134,7 @@ export async function backtestRoutes(app: FastifyInstance) {
           });
         }
         versionId = strategy.versions[0]!.id;
-        config = strategy.versions[0]!.config as StrategyConfig;
+        config = strategy.versions[0]!.config as unknown as StrategyConfig;
       }
 
       const startDate = new Date(body.startDate);
@@ -336,8 +336,8 @@ export async function backtestRoutes(app: FastifyInstance) {
       const paramsA = { ...baseParams, strategyVersionId: versionA.id };
       const paramsB = { ...baseParams, strategyVersionId: versionB.id };
 
-      const resultA = runBacktest(versionA.config as StrategyConfig, candles, paramsA);
-      const resultB = runBacktest(versionB.config as StrategyConfig, candles, paramsB);
+      const resultA = runBacktest(versionA.config as unknown as StrategyConfig, candles, paramsA);
+      const resultB = runBacktest(versionB.config as unknown as StrategyConfig, candles, paramsB);
 
       await createAuditEvent({
         actorType: 'user',
