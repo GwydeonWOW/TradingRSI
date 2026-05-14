@@ -1,0 +1,269 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../packages/shared/src/generated/prisma"
+}
+
+// ============================
+// Security & Auth (Section 16.8)
+// ============================
+
+model User {
+  id                String              @id @default(uuid())
+  emailCiphertext   String?
+  emailLookupHash   String              @unique
+  passwordHash      String
+  role              String              @default("user")
+  mfaRequired       Boolean             @default(true)
+  mfaEnabled        Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  mfaSecrets        UserMfaSecret[]
+  recoveryCodes     UserRecoveryCode[]
+  sessions          UserSession[]
+  exchangeCredentials ExchangeCredential[]
+
+  @@map("users")
+}
+
+model UserMfaSecret {
+  id              String    @id @default(uuid())
+  userId          String
+  type            String    @default("totp")
+  secretCiphertext String
+  secretNonce     String
+  secretTag       String
+  keyVersion      Int       @default(1)
+  confirmedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  revokedAt       DateTime?
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_mfa_secrets")
+}
+
+model UserRecoveryCode {
+  id        String     @id @default(uuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime   @default(now())
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_recovery_codes")
+}
+
+model UserSession {
+  id               String     @id @default(uuid())
+  userId           String
+  refreshTokenHash String
+  userAgent        String?
+  ipHash           String?
+  mfaVerifiedAt    DateTime?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime   @default(now())
+
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+model ExchangeCredential {
+  id                   String     @id @default(uuid())
+  userId               String
+  exchange             String     @default("binance")
+  environment          String
+  label                String
+  apiKeyCiphertext     String
+  apiKeyNonce          String
+  apiKeyTag            String
+  apiSecretCiphertext  String
+  apiSecretNonce       String
+  apiSecretTag         String
+  keyVersion           Int        @default(1)
+  enabled              Boolean    @default(true)
+  createdAt            DateTime   @default(now())
+  revokedAt            DateTime?
+
+  user                 User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("exchange_credentials")
+}
+
+// ============================
+// Strategy & Trading (Section 8)
+// ============================
+
+model Strategy {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  status      String   @default("draft")
+  mode        String   @default("simulation")
+  environment String   @default("demo")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  versions    StrategyVersion[]
+  signals     Signal[]
+  orders      ExchangeOrder[]
+  positions   Position[]
+
+  @@index([status])
+  @@map("strategies")
+}
+
+model StrategyVersion {
+  id         String   @id @default(uuid())
+  strategyId String
+  version    Int
+  config     Json
+  createdBy  String?
+  createdAt  DateTime @default(now())
+
+  strategy   Strategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  signals    Signal[]
+  orders     ExchangeOrder[]
+  positions  Position[]
+
+  @@unique([strategyId, version])
+  @@map("strategy_versions")
+}
+
+model Signal {
+  id                  String   @id @default(uuid())
+  strategyId          String
+  strategyVersionId   String
+  symbol              String
+  timeframe           String
+  signalType          String
+  rsiValue            Decimal? @db.Decimal(12, 6)
+  price               Decimal? @db.Decimal(24, 12)
+  payload             Json
+  createdAt           DateTime @default(now())
+
+  strategy            Strategy         @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  strategyVersion     StrategyVersion  @relation(fields: [strategyVersionId], references: [id], onDelete: Cascade)
+  decisions           Decision[]
+
+  @@index([strategyId, createdAt])
+  @@index([symbol, timeframe])
+  @@map("signals")
+}
+
+model Decision {
+  id         String   @id @default(uuid())
+  signalId   String
+  decision   String
+  reason     String?
+  riskResult Json
+  createdAt  DateTime @default(now())
+
+  signal     Signal         @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  orders     ExchangeOrder[]
+
+  @@map("decisions")
+}
+
+model ExchangeOrder {
+  id                      String    @id @default(uuid())
+  strategyId              String
+  strategyVersionId       String
+  decisionId              String?
+  exchange                String    @default("binance")
+  environment             String
+  symbol                  String
+  side                    String
+  type                    String
+  status                  String
+  clientOrderId           String?   @unique
+  exchangeOrderId         String?
+  quoteAmount             Decimal?  @db.Decimal(24, 12)
+  requestedQuantity       Decimal?  @db.Decimal(24, 12)
+  executedQuantity        Decimal?  @db.Decimal(24, 12)
+  cumulativeQuoteQuantity Decimal?  @db.Decimal(24, 12)
+  avgPrice                Decimal?  @db.Decimal(24, 12)
+  rawRequest              Json?
+  rawResponse             Json?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  strategy                Strategy         @relation(fields: [strategyId], references: [id])
+  strategyVersion         StrategyVersion  @relation(fields: [strategyVersionId], references: [id])
+  decision                Decision?        @relation(fields: [decisionId], references: [id])
+  fills                   ExchangeFill[]
+
+  @@index([strategyId, status])
+  @@index([symbol, createdAt])
+  @@index([status])
+  @@map("exchange_orders")
+}
+
+model ExchangeFill {
+  id             String    @id @default(uuid())
+  exchangeOrderId String
+  tradeId        String?
+  price          Decimal   @db.Decimal(24, 12)
+  quantity       Decimal   @db.Decimal(24, 12)
+  quoteQuantity  Decimal?  @db.Decimal(24, 12)
+  commission     Decimal?  @db.Decimal(24, 12)
+  commissionAsset String?
+  executedAt     DateTime?
+  rawEvent       Json?
+
+  order          ExchangeOrder @relation(fields: [exchangeOrderId], references: [id], onDelete: Cascade)
+
+  @@map("exchange_fills")
+}
+
+model Position {
+  id                  String    @id @default(uuid())
+  strategyId          String
+  strategyVersionId   String
+  symbol              String
+  status              String
+  source              String
+  entryOrderId        String?
+  exitOrderId         String?
+  quantity            Decimal?  @db.Decimal(24, 12)
+  entryPrice          Decimal?  @db.Decimal(24, 12)
+  exitPrice           Decimal?  @db.Decimal(24, 12)
+  investedQuote       Decimal?  @db.Decimal(24, 12)
+  realizedPnl         Decimal?  @db.Decimal(24, 12)
+  realizedPnlPct      Decimal?  @db.Decimal(12, 6)
+  openedAt            DateTime?
+  closedAt            DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  strategy            Strategy         @relation(fields: [strategyId], references: [id])
+  strategyVersion     StrategyVersion  @relation(fields: [strategyVersionId], references: [id])
+
+  @@index([status])
+  @@index([symbol])
+  @@index([strategyId, status])
+  @@map("positions")
+}
+
+model AuditEvent {
+  id          String   @id @default(uuid())
+  actorType   String
+  actorId     String?
+  eventType   String
+  entityType  String?
+  entityId    String?
+  payload     Json
+  createdAt   DateTime @default(now())
+
+  @@index([eventType])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_events")
+}
