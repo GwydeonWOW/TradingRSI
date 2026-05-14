@@ -24,8 +24,6 @@ RUN npx prisma generate
 RUN pnpm --filter @cryptorsi/shared build
 RUN pnpm --filter @cryptorsi/indicators build
 RUN pnpm --filter worker build
-# Strip devDependencies while preserving pnpm structure
-RUN pnpm prune --prod
 
 # Production
 FROM base AS prod
