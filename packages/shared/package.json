@@ -2,11 +2,11 @@
   "name": "@cryptorsi/shared",
   "version": "0.1.0",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./generated/prisma": "./src/generated/prisma/client.ts"
+    ".": "./dist/index.js",
+    "./generated/prisma": "./dist/generated/prisma/client.js"
   },
   "scripts": {
     "build": "tsc"
