@@ -2,7 +2,7 @@ FROM node:22-alpine AS base
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
-# Install all dependencies
+# Install all dependencies (includes prisma CLI for generate)
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml prisma.config.ts ./
 COPY apps/api/package.json ./apps/api/
@@ -12,7 +12,7 @@ COPY packages/binance-client/package.json ./packages/binance-client/
 COPY prisma/ ./prisma/
 RUN pnpm install --frozen-lockfile
 
-# Build
+# Build — generate Prisma client, compile TypeScript
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
@@ -24,16 +24,14 @@ RUN npx prisma generate
 RUN pnpm --filter @cryptorsi/shared build
 RUN pnpm --filter api build
 
-# Production — install only prod deps, preserving pnpm structure
+# Production — install only prod deps
 FROM base AS prod-install
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml prisma.config.ts ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/indicators/package.json ./packages/indicators/
 COPY packages/binance-client/package.json ./packages/binance-client/
-COPY prisma/ ./prisma/
 RUN pnpm install --frozen-lockfile --prod
-RUN npx prisma generate
 
 # Final production image
 FROM base AS prod
@@ -41,9 +39,9 @@ RUN apk add --no-cache curl
 COPY --from=build /app/apps/api/dist ./dist
 COPY --from=build /app/apps/api/package.json ./apps/api/
 COPY --from=build /app/apps/api/entrypoint.sh ./entrypoint.sh
+COPY --from=build /app/packages/shared/src/generated ./packages/shared/src/generated
 COPY --from=prod-install /app/node_modules ./node_modules
 COPY --from=prod-install /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=prod-install /app/packages/shared/src/generated ./packages/shared/src/generated
 COPY --from=prod-install /app/packages/shared/package.json ./packages/shared/
 COPY --from=prod-install /app/packages/indicators/package.json ./packages/indicators/
 COPY --from=prod-install /app/packages/binance-client/package.json ./packages/binance-client/
