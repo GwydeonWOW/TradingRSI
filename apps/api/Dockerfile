@@ -9,7 +9,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/indicators/package.json ./packages/indicators/
 COPY packages/binance-client/package.json ./packages/binance-client/
 COPY prisma/ ./prisma/
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --config.node-linker=hoisted
 
 COPY . .
 ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
