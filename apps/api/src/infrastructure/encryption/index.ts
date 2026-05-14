@@ -6,9 +6,8 @@ const TAG_LENGTH = 16;
 
 function getEncryptionKey(): Buffer {
   const key = process.env.APP_ENCRYPTION_KEY;
-  if (!key) throw new Error('APP_ENCRYPTION_KEY not configured');
-  // Key must be 32 bytes for AES-256
-  return Buffer.from(key.padEnd(32).slice(0, 32), 'utf8');
+  if (!key || key.length < 16) throw new Error('APP_ENCRYPTION_KEY must be at least 16 characters');
+  return crypto.createHash('sha256').update(key).digest();
 }
 
 export function encrypt(plaintext: string): { ciphertext: string; nonce: string; tag: string } {

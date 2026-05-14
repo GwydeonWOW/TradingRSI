@@ -11,7 +11,7 @@ import { backtestRoutes } from './modules/backtests/routes.js';
 import { prisma } from './infrastructure/db/prisma.js';
 
 const port = Number(process.env.PORT) || 3000;
-const host = process.env.HOST || '0.0.0.0';
+const host = process.env.HOST || '127.0.0.1';
 
 async function start() {
   const app = Fastify({
@@ -19,7 +19,7 @@ async function start() {
   });
 
   await app.register(cors, {
-    origin: true,
+    origin: process.env.APP_URL?.split(',') || ['http://localhost:5173', 'http://localhost:3000'],
     credentials: true,
   });
 

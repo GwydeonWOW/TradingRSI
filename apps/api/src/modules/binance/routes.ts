@@ -124,6 +124,14 @@ async function unsignedPut(
 // Routes
 // ---------------------------------------------------------------------------
 
+function sanitizeError(_err: unknown, fallbackMessage: string): string {
+  return fallbackMessage;
+}
+
+function validateSymbol(symbol: string): boolean {
+  return /^[A-Z]{2,20}$/.test(symbol);
+}
+
 type BinanceEnv = 'demo' | 'testnet' | 'production';
 
 function getEnv(): BinanceEnv {
@@ -184,7 +192,7 @@ export async function binanceRoutes(app: FastifyInstance) {
       };
       return { success: true, data: account };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to fetch account';
+      const message = sanitizeError(err, 'Failed to fetch account');
       logger.error({ err }, 'Failed to fetch Binance account');
       return { success: false, error: { code: 'BINANCE_ERROR', message } };
     }
@@ -209,6 +217,10 @@ export async function binanceRoutes(app: FastifyInstance) {
       return { success: false, error: { code: 'VALIDATION', message: 'symbol, side, type are required' } };
     }
 
+    if (!validateSymbol(body.symbol)) {
+      return { success: false, error: { code: 'VALIDATION', message: 'Invalid symbol format' } };
+    }
+
     try {
       const params: Record<string, string> = {
         symbol: body.symbol,
@@ -230,7 +242,7 @@ export async function binanceRoutes(app: FastifyInstance) {
 
       return { success: true, data: { message: 'Order validation passed' } };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Order test failed';
+      const message = sanitizeError(err, 'Order test failed');
       logger.error({ err }, 'Binance order test failed');
       return { success: false, error: { code: 'ORDER_TEST_FAILED', message } };
     }
@@ -400,7 +412,8 @@ export async function binanceRoutes(app: FastifyInstance) {
         },
       };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Reconciliation failed';
+      const message = sanitizeError(err, 'Reconciliation failed');
+      logger.error({ err }, 'Reconciliation failed');
       return { success: false, error: { code: 'RECONCILE_FAILED', message } };
     }
   });
@@ -413,6 +426,9 @@ export async function binanceRoutes(app: FastifyInstance) {
     }
 
     const query = request.query as { symbol?: string };
+    if (query.symbol && !validateSymbol(query.symbol)) {
+      return { success: false, error: { code: 'VALIDATION', message: 'Invalid symbol format' } };
+    }
     const params: Record<string, string> = {};
     if (query.symbol) params.symbol = query.symbol;
 
@@ -432,7 +448,8 @@ export async function binanceRoutes(app: FastifyInstance) {
       }>;
       return { success: true, data: orders };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to fetch open orders';
+      const message = sanitizeError(err, 'Failed to fetch open orders');
+      logger.error({ err }, 'Failed to fetch open orders');
       return { success: false, error: { code: 'OPEN_ORDERS_FAILED', message } };
     }
   });
@@ -447,6 +464,10 @@ export async function binanceRoutes(app: FastifyInstance) {
 
     if (!query.symbol || !query.interval) {
       return { success: false, error: { code: 'VALIDATION', message: 'symbol and interval are required' } };
+    }
+
+    if (!validateSymbol(query.symbol)) {
+      return { success: false, error: { code: 'VALIDATION', message: 'Invalid symbol format' } };
     }
 
     try {
@@ -474,7 +495,8 @@ export async function binanceRoutes(app: FastifyInstance) {
 
       return { success: true, data: klines };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to fetch klines';
+      const message = sanitizeError(err, 'Failed to fetch klines');
+      logger.error({ err }, 'Failed to fetch klines');
       return { success: false, error: { code: 'KLINES_FAILED', message } };
     }
   });
@@ -494,12 +516,12 @@ export async function binanceRoutes(app: FastifyInstance) {
         actorType: 'user',
         eventType: 'listen_key_created',
         entityType: 'stream',
-        payload: { listenKey: data.listenKey },
+        payload: { action: 'listen_key_created', keyPrefix: data.listenKey.slice(0, 8) + '...' },
       });
 
-      return { success: true, data: { listenKey: data.listenKey } };
+      return { success: true, data: { message: 'Listen key created' } };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create listen key';
+      const message = sanitizeError(err, 'Failed to create listen key');
       logger.error({ err }, 'Failed to create listen key');
       return { success: false, error: { code: 'LISTEN_KEY_FAILED', message } };
     }
@@ -522,7 +544,7 @@ export async function binanceRoutes(app: FastifyInstance) {
 
       return { success: true, data: { message: 'Listen key kept alive' } };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to keep-alive listen key';
+      const message = sanitizeError(err, 'Failed to keep-alive listen key');
       logger.error({ err }, 'Failed to keep-alive listen key');
       return { success: false, error: { code: 'LISTEN_KEY_KEEPALIVE_FAILED', message } };
     }
@@ -609,7 +631,7 @@ export async function binanceRoutes(app: FastifyInstance) {
         },
       };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Live readiness check failed';
+      const message = sanitizeError(err, 'Live readiness check failed');
       logger.error({ err }, 'Live readiness check failed');
       return { success: false, error: { code: 'LIVE_READINESS_FAILED', message } };
     }

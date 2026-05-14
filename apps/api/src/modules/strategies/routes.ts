@@ -198,7 +198,7 @@ export async function strategyRoutes(app: FastifyInstance) {
         });
       }
 
-      const allowedFields = ['name', 'description', 'status', 'mode', 'environment'];
+      const allowedFields = ['name', 'description', 'status'];
       const updateData: Record<string, unknown> = {};
       for (const field of allowedFields) {
         if (body[field] !== undefined) {

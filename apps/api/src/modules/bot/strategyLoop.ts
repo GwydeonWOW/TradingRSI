@@ -110,8 +110,7 @@ export async function runEvaluationCycle(): Promise<void> {
             marketData = { symbol, timeframe, closes, currentPrice, timestamp: Date.now() };
             addEvent('binance_data', { symbol, timeframe, price: currentPrice, candles: raw.length });
           } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Failed to fetch Binance data';
-            addEvent('error', { message: msg });
+            addEvent('error', { message: 'Failed to fetch Binance data' });
             logger.error({ err, symbol, timeframe }, 'Failed to fetch Binance klines, skipping cycle');
             continue;
           }
@@ -496,14 +495,13 @@ export async function runEvaluationCycle(): Promise<void> {
                 }
               }
             } catch (err) {
-              const msg = err instanceof Error ? err.message : 'Order execution failed';
-              addEvent('order_error', { symbol, side: signal.signalType === 'BUY_SIGNAL' ? 'BUY' : 'SELL', message: msg });
+              addEvent('order_error', { symbol, side: signal.signalType === 'BUY_SIGNAL' ? 'BUY' : 'SELL', message: 'Order execution failed' });
               logger.error({ err, symbol, signalType: signal.signalType }, 'Binance order execution failed');
               await createAuditEvent({
                 actorType: 'bot',
                 eventType: 'order_error',
                 entityType: 'order',
-                payload: { symbol, side: signal.signalType === 'BUY_SIGNAL' ? 'BUY' : 'SELL', error: msg },
+                payload: { symbol, side: signal.signalType === 'BUY_SIGNAL' ? 'BUY' : 'SELL', error: 'Order execution failed' },
               });
             }
           } else if (strategy.mode === 'binance_demo_dry_run' || (strategy.mode !== 'simulation' && config.execution.dryRun)) {
@@ -568,8 +566,8 @@ export async function runEvaluationCycle(): Promise<void> {
                   payload: { symbol, price: signal.price, investedQuote, source: 'binance_demo_dry_run' },
                 });
               } catch (err) {
-                const msg = err instanceof Error ? err.message : 'Order test failed';
-                addEvent('order_test_failed', { symbol, message: msg });
+                addEvent('order_test_failed', { symbol, message: 'Order test failed' });
+                logger.error({ err, symbol }, 'Order test failed');
               }
             }
           }
@@ -586,7 +584,7 @@ export async function runEvaluationCycle(): Promise<void> {
     const message = err instanceof Error ? err.message : 'Unknown error';
     logger.error({ err }, 'Evaluation cycle failed');
     setBotState({ status: 'error', errorMessage: message });
-    addEvent('error', { message });
+    addEvent('error', { message: 'Evaluation cycle failed' });
   }
 }
 
