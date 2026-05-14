@@ -1,4 +1,5 @@
 import pino from 'pino';
+import { reconciliationLoop } from './jobs/reconciliationLoop.js';
 
 const logger = pino({
   transport: {
@@ -14,23 +15,19 @@ async function main() {
   logger.info('CryptoRSI v2 Worker starting...');
   logger.info(`Environment: ${process.env.NODE_ENV ?? 'development'}`);
 
-  // DB connection placeholder - will use Prisma when DB is available
   logger.info('Worker initialized successfully');
 
-  const intervalMs = 60_000; // 1 minute
+  const reconciliationIntervalMs = 5 * 60_000; // 5 minutes
   let cycleCount = 0;
 
   while (running) {
     cycleCount++;
     logger.debug({ cycle: cycleCount }, 'Worker heartbeat');
 
-    // TODO: Phase 2 - Strategy evaluation loop
-    // await strategyLoop();
+    // Run reconciliation every 5 minutes
+    await reconciliationLoop();
 
-    // TODO: Phase 5 - Reconciliation loop
-    // await reconciliationLoop();
-
-    await sleep(intervalMs);
+    await sleep(reconciliationIntervalMs);
   }
 
   logger.info('Worker shutdown complete');

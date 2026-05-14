@@ -5,7 +5,8 @@ import { EmptyState } from '../components/EmptyState.tsx';
 import { BotStatusBadge } from '../components/BotStatusBadge.tsx';
 import { botApi, type BotStatus, type BotEvent, type BotStatusType } from '../api/bot.ts';
 import { strategiesApi, type StrategyListItem } from '../api/strategies.ts';
-import { tradingApi, type BinanceOpenOrder, type ReconcileResult } from '../api/trading.ts';
+import { tradingApi, type BinanceOpenOrder, type ReconcileResult, type StreamStatus } from '../api/trading.ts';
+import { StreamStatusBadge } from '../components/StreamStatusBadge.tsx';
 
 function formatTime(ts: number | null): string {
   if (!ts) return '--';
@@ -47,6 +48,7 @@ function eventTypeLabel(type: string): string {
     risk_check: 'Check de riesgo',
     position_opened: 'Posicion abierta',
     position_closed: 'Posicion cerrada',
+    kline_close: 'Kline Cierre',
   };
   return labels[type] ?? type;
 }
@@ -110,6 +112,8 @@ export function BotPage() {
   const [reconcileLoading, setReconcileLoading] = useState(false);
   const [openOrders, setOpenOrders] = useState<BinanceOpenOrder[]>([]);
   const [openOrdersLoading, setOpenOrdersLoading] = useState(false);
+  const [streamStatus, setStreamStatus] = useState<StreamStatus | null>(null);
+  const [streamActionLoading, setStreamActionLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -136,6 +140,17 @@ export function BotPage() {
     }
   }, []);
 
+  const fetchStreamStatus = useCallback(async () => {
+    try {
+      const res = await tradingApi.getStreamStatus();
+      if (res.success) {
+        setStreamStatus(res.data);
+      }
+    } catch {
+      // Stream status fetch failure is non-critical
+    }
+  }, []);
+
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 10_000);
@@ -145,6 +160,12 @@ export function BotPage() {
   useEffect(() => {
     fetchStrategies();
   }, [fetchStrategies]);
+
+  useEffect(() => {
+    fetchStreamStatus();
+    const interval = setInterval(fetchStreamStatus, 10_000);
+    return () => clearInterval(interval);
+  }, [fetchStreamStatus]);
 
   const handleStart = async (strategyId: string) => {
     setActionLoading(true);
@@ -231,6 +252,30 @@ export function BotPage() {
   useEffect(() => {
     handleFetchOpenOrders();
   }, []);
+
+  const handleStartStreams = async () => {
+    setStreamActionLoading(true);
+    try {
+      await tradingApi.startStreams();
+      fetchStreamStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error iniciando streams');
+    } finally {
+      setStreamActionLoading(false);
+    }
+  };
+
+  const handleStopStreams = async () => {
+    setStreamActionLoading(true);
+    try {
+      await tradingApi.stopStreams();
+      fetchStreamStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error deteniendo streams');
+    } finally {
+      setStreamActionLoading(false);
+    }
+  };
 
   if (loading) return <LoadingSpinner size="lg" />;
 
@@ -467,6 +512,56 @@ export function BotPage() {
         <PipelineVisual status={status?.status ?? 'idle'} />
       </div>
 
+      {/* Stream status */}
+      <div className="mt-6 rounded-lg border border-border bg-bg-secondary p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-text-secondary">WebSocket Streams</h2>
+          {streamStatus && (
+            <StreamStatusBadge
+              klineConnected={streamStatus.klineConnected}
+              userStreamConnected={streamStatus.userStreamConnected}
+              subscriptionsCount={streamStatus.subscriptionsCount}
+            />
+          )}
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-text-muted">Kline Stream</span>
+            <span className={streamStatus?.klineConnected ? 'text-success' : 'text-text-muted'}>
+              {streamStatus?.klineConnected ? 'Conectado' : 'Desconectado'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-text-muted">User Stream</span>
+            <span className={streamStatus?.userStreamConnected ? 'text-success' : 'text-text-muted'}>
+              {streamStatus?.userStreamConnected ? 'Conectado' : 'Desconectado'}
+            </span>
+          </div>
+          {streamStatus?.listenKeyAge != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-text-muted">Listen Key Age</span>
+              <span className="text-text-primary">{Math.floor(streamStatus.listenKeyAge / 60_000)}m</span>
+            </div>
+          )}
+        </div>
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={handleStartStreams}
+            className="rounded-lg bg-success px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-success/90 disabled:opacity-50"
+            disabled={streamActionLoading || (streamStatus?.klineConnected === true && streamStatus?.userStreamConnected === true)}
+          >
+            {streamActionLoading ? 'Iniciando...' : 'Iniciar Streams'}
+          </button>
+          <button
+            onClick={handleStopStreams}
+            className="rounded-lg border border-danger/50 bg-danger/10 px-4 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/20 disabled:opacity-50"
+            disabled={streamActionLoading || (!streamStatus?.klineConnected && !streamStatus?.userStreamConnected)}
+          >
+            {streamActionLoading ? 'Deteniendo...' : 'Detener Streams'}
+          </button>
+        </div>
+      </div>
+
       {/* Last evaluation detail */}
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <div className="rounded-lg border border-border bg-bg-secondary p-4">
@@ -541,7 +636,7 @@ export function BotPage() {
                         className={`h-2 w-2 rounded-full ${
                           event.type === 'error' || event.type === 'kill_switch'
                             ? 'bg-danger'
-                            : event.type === 'signal' || event.type === 'order_placed'
+                            : event.type === 'signal' || event.type === 'order_placed' || event.type === 'kline_close'
                               ? 'bg-success'
                               : event.type === 'bot_started' || event.type === 'bot_stopped'
                                 ? 'bg-warning'

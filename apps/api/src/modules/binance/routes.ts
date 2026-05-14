@@ -65,6 +65,60 @@ async function signedPost(
   return response.json();
 }
 
+async function signedPut(
+  baseUrl: string,
+  path: string,
+  params: Record<string, string>,
+  apiKey: string,
+  apiSecret: string,
+): Promise<unknown> {
+  const qs = buildSignedQuery(params, apiSecret);
+  const url = `${baseUrl}${path}?${qs}`;
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: { 'X-MBX-APIKEY': apiKey },
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Binance API error ${response.status}: ${body}`);
+  }
+  return response.json();
+}
+
+async function unsignedPost(
+  baseUrl: string,
+  path: string,
+  apiKey: string,
+): Promise<unknown> {
+  const url = `${baseUrl}${path}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'X-MBX-APIKEY': apiKey },
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Binance API error ${response.status}: ${body}`);
+  }
+  return response.json();
+}
+
+async function unsignedPut(
+  baseUrl: string,
+  path: string,
+  apiKey: string,
+): Promise<unknown> {
+  const url = `${baseUrl}${path}`;
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: { 'X-MBX-APIKEY': apiKey },
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Binance API error ${response.status}: ${body}`);
+  }
+  return response.json();
+}
+
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
@@ -421,6 +475,55 @@ export async function binanceRoutes(app: FastifyInstance) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch klines';
       return { success: false, error: { code: 'KLINES_FAILED', message } };
+    }
+  });
+
+  // POST /api/binance/listen-key
+  app.post('/api/binance/listen-key', async () => {
+    const creds = getCredentials();
+    if (!creds) {
+      return { success: false, error: { code: 'NOT_CONFIGURED', message: 'Binance API credentials not configured' } };
+    }
+
+    try {
+      // POST /v3/userDataStream does not require signed params, only API key header
+      const data = await unsignedPost(getBaseUrl(), '/v3/userDataStream', creds.apiKey) as { listenKey: string };
+
+      await createAuditEvent({
+        actorType: 'user',
+        eventType: 'listen_key_created',
+        entityType: 'stream',
+        payload: { listenKey: data.listenKey },
+      });
+
+      return { success: true, data: { listenKey: data.listenKey } };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create listen key';
+      logger.error({ err }, 'Failed to create listen key');
+      return { success: false, error: { code: 'LISTEN_KEY_FAILED', message } };
+    }
+  });
+
+  // PUT /api/binance/listen-key
+  app.put('/api/binance/listen-key', async (request) => {
+    const creds = getCredentials();
+    if (!creds) {
+      return { success: false, error: { code: 'NOT_CONFIGURED', message: 'Binance API credentials not configured' } };
+    }
+
+    const body = request.body as { listenKey?: string };
+    if (!body.listenKey) {
+      return { success: false, error: { code: 'VALIDATION', message: 'listenKey is required' } };
+    }
+
+    try {
+      await unsignedPut(getBaseUrl(), `/v3/userDataStream?listenKey=${body.listenKey}`, creds.apiKey);
+
+      return { success: true, data: { message: 'Listen key kept alive' } };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to keep-alive listen key';
+      logger.error({ err }, 'Failed to keep-alive listen key');
+      return { success: false, error: { code: 'LISTEN_KEY_KEEPALIVE_FAILED', message } };
     }
   });
 }

@@ -50,6 +50,13 @@ export interface BinanceStatus {
   endpoints: string[];
 }
 
+export interface StreamStatus {
+  klineConnected: boolean;
+  userStreamConnected: boolean;
+  listenKeyAge: number | null;
+  subscriptionsCount: number;
+}
+
 export interface BinanceBalance {
   asset: string;
   free: string;
@@ -103,4 +110,10 @@ export const tradingApi = {
     const query = new URLSearchParams(params).toString();
     return apiGet<{ success: boolean; data: Array<{ openTime: number; open: string; high: string; low: string; close: string; volume: string; closeTime: number }> }>(`/binance/klines?${query}`);
   },
+  getStreamStatus: () =>
+    apiGet<{ success: boolean; data: StreamStatus }>('/binance/streams/status'),
+  startStreams: () =>
+    apiPost<{ success: boolean; data: unknown }>('/binance/streams/start'),
+  stopStreams: () =>
+    apiPost<{ success: boolean; data: unknown }>('/binance/streams/stop'),
 };

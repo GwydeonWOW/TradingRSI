@@ -5,7 +5,8 @@ import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { BotStatusBadge } from '../components/BotStatusBadge.tsx';
 import { botApi, type BotStatus, type BotEvent } from '../api/bot.ts';
-import { tradingApi, type BinanceStatus, type BinanceBalance } from '../api/trading.ts';
+import { tradingApi, type BinanceStatus, type BinanceBalance, type StreamStatus } from '../api/trading.ts';
+import { StreamStatusBadge } from '../components/StreamStatusBadge.tsx';
 
 function formatUptime(startedAt: number | null): string {
   if (!startedAt) return '0h 0m';
@@ -27,6 +28,7 @@ function eventTypeLabel(type: string): string {
     evaluation: 'Evaluacion',
     signal: 'Senal generada',
     order_placed: 'Orden colocada',
+    kline_close: 'Kline Cierre',
     error: 'Error',
     kill_switch: 'Kill Switch',
   };
@@ -40,18 +42,23 @@ export function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [binanceStatus, setBinanceStatus] = useState<BinanceStatus | null>(null);
   const [balances, setBalances] = useState<BinanceBalance[]>([]);
+  const [streamStatus, setStreamStatus] = useState<StreamStatus | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [statusRes, eventsRes, binanceRes] = await Promise.all([
+      const [statusRes, eventsRes, binanceRes, streamRes] = await Promise.all([
         botApi.getStatus(),
         botApi.getEvents(10),
         tradingApi.getBinanceStatus().catch(() => null),
+        tradingApi.getStreamStatus().catch(() => null),
       ]);
       setStatus(statusRes.data);
       setEvents(eventsRes.data);
       if (binanceRes?.success) {
         setBinanceStatus(binanceRes.data);
+      }
+      if (streamRes?.success) {
+        setStreamStatus(streamRes.data);
       }
       setError(null);
     } catch (err) {
@@ -154,6 +161,26 @@ export function DashboardPage() {
           value={formatUptime(status?.startedAt ?? null)}
           subtitle={status?.startedAt ? `Desde ${new Date(status.startedAt).toLocaleTimeString('es-ES')}` : undefined}
           variant={status?.status === 'running' ? 'success' : 'default'}
+        />
+        <MetricCard
+          title="Binance REST"
+          value={binanceStatus?.connected ? 'Conectado' : 'Desconectado'}
+          subtitle={binanceStatus?.connected ? `Latencia: ${binanceStatus.latency}ms` : undefined}
+          variant={binanceStatus?.connected ? 'success' : 'danger'}
+        />
+        <MetricCard
+          title="Binance WS"
+          value={
+            streamStatus
+              ? <StreamStatusBadge
+                  klineConnected={streamStatus.klineConnected}
+                  userStreamConnected={streamStatus.userStreamConnected}
+                  subscriptionsCount={streamStatus.subscriptionsCount}
+                />
+              : 'Sin datos'
+          }
+          subtitle={streamStatus?.klineConnected ? `${streamStatus.subscriptionsCount} suscripciones` : undefined}
+          variant={streamStatus?.klineConnected && streamStatus?.userStreamConnected ? 'success' : streamStatus ? 'warning' : 'default'}
         />
       </div>
 
