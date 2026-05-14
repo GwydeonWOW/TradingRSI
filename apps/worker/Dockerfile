@@ -20,8 +20,10 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 COPY --from=deps /app/packages/indicators/node_modules ./packages/indicators/node_modules
 COPY --from=deps /app/packages/binance-client/node_modules ./packages/binance-client/node_modules
 COPY . .
-RUN pnpm --filter worker build
 RUN npx prisma generate
+RUN pnpm --filter @cryptorsi/shared build
+RUN pnpm --filter @cryptorsi/indicators build
+RUN pnpm --filter worker build
 
 # Production
 FROM base AS prod

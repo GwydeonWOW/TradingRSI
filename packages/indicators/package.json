@@ -7,6 +7,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "build": "tsc"
+  },
   "dependencies": {
     "@cryptorsi/shared": "workspace:*"
   },
