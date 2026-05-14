@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { logger } from './infrastructure/logger/index.js';
 import { healthRoutes } from './modules/health/routes.js';
+import { strategyRoutes } from './modules/strategies/routes.js';
 import { prisma } from './infrastructure/db/prisma.js';
 
 const port = Number(process.env.PORT) || 3000;
@@ -19,6 +20,7 @@ async function start() {
 
   // Routes
   await app.register(healthRoutes);
+  await app.register(strategyRoutes);
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {

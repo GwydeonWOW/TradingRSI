@@ -3,6 +3,9 @@ import { AppShell } from './components/AppShell.tsx';
 import { DashboardPage } from './pages/DashboardPage.tsx';
 import { BotPage } from './pages/BotPage.tsx';
 import { StrategiesPage } from './pages/StrategiesPage.tsx';
+import { StrategyDetailPage } from './pages/StrategyDetailPage.tsx';
+import { StrategyEditorPage } from './pages/StrategyEditorPage.tsx';
+import { NewStrategyPage } from './pages/NewStrategyPage.tsx';
 import { OrdersPage } from './pages/OrdersPage.tsx';
 import { PositionsPage } from './pages/PositionsPage.tsx';
 import { SignalsPage } from './pages/SignalsPage.tsx';
@@ -19,6 +22,9 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/bot" element={<BotPage />} />
         <Route path="/strategies" element={<StrategiesPage />} />
+        <Route path="/strategies/new" element={<NewStrategyPage />} />
+        <Route path="/strategies/:id" element={<StrategyDetailPage />} />
+        <Route path="/strategies/:id/editor" element={<StrategyEditorPage />} />
         <Route path="/orders" element={<OrdersPage />} />
         <Route path="/positions" element={<PositionsPage />} />
         <Route path="/signals" element={<SignalsPage />} />
