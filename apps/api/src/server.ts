@@ -4,6 +4,9 @@ import { logger } from './infrastructure/logger/index.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { strategyRoutes } from './modules/strategies/routes.js';
 import { botRoutes } from './modules/bot/routes.js';
+import { binanceRoutes } from './modules/binance/routes.js';
+import { positionRoutes } from './modules/positions/routes.js';
+import { orderRoutes } from './modules/orders/routes.js';
 import { prisma } from './infrastructure/db/prisma.js';
 
 const port = Number(process.env.PORT) || 3000;
@@ -23,6 +26,9 @@ async function start() {
   await app.register(healthRoutes);
   await app.register(strategyRoutes);
   await app.register(botRoutes);
+  await app.register(binanceRoutes);
+  await app.register(positionRoutes);
+  await app.register(orderRoutes);
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {

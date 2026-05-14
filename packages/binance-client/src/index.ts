@@ -11,8 +11,8 @@ export type {
   AccountInfo,
   BinanceClient,
 } from './client.js';
-export { adjustQuantityToLotSize } from './orders.js';
-export type { OrderValidationResult } from './orders.js';
+export { adjustQuantityToLotSize, validateOrder, generateClientOrderId, getStepSizePrecision } from './orders.js';
+export type { OrderValidationResult, ExchangeSymbolFilter, ExchangeSymbolInfo } from './orders.js';
 export {
   getKlineStreamUrl,
   getCombinedStreamUrl,

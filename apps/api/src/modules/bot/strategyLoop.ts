@@ -6,6 +6,7 @@ import { executeSimulation } from '../../domain/execution/simulation.js';
 import { createAuditEvent } from '../audit/helpers.js';
 import { getBotState, setBotState } from './state.js';
 import type { StrategyConfig } from '@cryptorsi/shared';
+import { BINANCE_ENVIRONMENTS } from '@cryptorsi/shared';
 
 export interface BotEvent {
   type: string;
@@ -62,9 +63,34 @@ export async function runEvaluationCycle(): Promise<void> {
           // Simulation mode: generate synthetic data
           marketData = generateSimulationData(symbol, timeframe);
         } else {
-          // Real mode: fetch from Binance (will be implemented in Phase 3)
-          // For now, fall back to simulation data
-          marketData = generateSimulationData(symbol, timeframe);
+          // Real Binance data
+          const apiKey = process.env.BINANCE_API_KEY;
+          const apiSecret = process.env.BINANCE_API_SECRET;
+          const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
+
+          if (!apiKey || !apiSecret) {
+            addEvent('error', { message: 'Binance credentials not configured, using simulation data' });
+            marketData = generateSimulationData(symbol, timeframe);
+          } else {
+            try {
+              const envConfig = BINANCE_ENVIRONMENTS[env];
+              const url = `${envConfig.restBaseUrl}/v3/klines?symbol=${symbol}&interval=${timeframe}&limit=50`;
+              const response = await fetch(url);
+              if (!response.ok) {
+                const body = await response.text();
+                throw new Error(`Binance API error ${response.status}: ${body}`);
+              }
+              const raw = await response.json() as (string | number)[][];
+              const closes = raw.map(k => parseFloat(k[4] as string));
+              const currentPrice = parseFloat(raw[raw.length - 1]![4] as string);
+              marketData = { symbol, timeframe, closes, currentPrice, timestamp: Date.now() };
+              addEvent('binance_data', { symbol, timeframe, price: currentPrice, candles: raw.length });
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Failed to fetch Binance data';
+              addEvent('error', { message: msg });
+              marketData = generateSimulationData(symbol, timeframe);
+            }
+          }
         }
 
         // Evaluate signal
@@ -136,7 +162,7 @@ export async function runEvaluationCycle(): Promise<void> {
           }
 
           // Execute in simulation mode
-          if (strategy.mode === 'simulation' || config.execution.dryRun) {
+          if (strategy.mode === 'simulation') {
             const simPositions = openPositions.map((p) => ({
               id: p.id,
               symbol: p.symbol,
@@ -193,6 +219,72 @@ export async function runEvaluationCycle(): Promise<void> {
                 entityId: pos.id,
                 payload: { symbol, pnl: result.realizedPnl, pnlPct: result.realizedPnlPct },
               });
+            }
+          } else if (strategy.mode === 'binance_demo_dry_run' || (strategy.mode !== 'simulation' && config.execution.dryRun)) {
+            // Binance Demo dry-run: validate order with /api/v3/order/test
+            const apiKey = process.env.BINANCE_API_KEY;
+            const apiSecret = process.env.BINANCE_API_SECRET;
+
+            if (apiKey && apiSecret && signal.signalType === 'BUY_SIGNAL') {
+              try {
+                const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
+                const envConfig = BINANCE_ENVIRONMENTS[env];
+
+                // Build signed test order request
+                const orderParams: Record<string, string> = {
+                  symbol,
+                  side: 'BUY',
+                  type: 'MARKET',
+                  quoteOrderQty: config.risk.quoteAmountPerTrade.toString(),
+                  newClientOrderId: `cryptorsi_test_${strategy.id}_${Date.now()}`,
+                  newOrderRespType: 'FULL',
+                  timestamp: Date.now().toString(),
+                  recvWindow: '5000',
+                };
+                const qs = new URLSearchParams(orderParams).toString();
+                const crypto = await import('node:crypto');
+                const signature = crypto.createHmac('sha256', apiSecret).update(qs).digest('hex');
+                const signedQs = `${qs}&signature=${signature}`;
+
+                const testUrl = `${envConfig.restBaseUrl}/v3/order/test?${signedQs}`;
+                const testResponse = await fetch(testUrl, {
+                  method: 'POST',
+                  headers: { 'X-MBX-APIKEY': apiKey },
+                });
+                if (!testResponse.ok) {
+                  const body = await testResponse.text();
+                  throw new Error(`Binance order test error ${testResponse.status}: ${body}`);
+                }
+
+                addEvent('order_test_passed', { symbol, side: 'BUY', quoteAmount: config.risk.quoteAmountPerTrade });
+
+                // Create simulated position (dry-run doesn't create real orders)
+                const investedQuote = config.risk.quoteAmountPerTrade;
+                const quantity = investedQuote / signal.price;
+                await prisma.position.create({
+                  data: {
+                    strategyId: strategy.id,
+                    strategyVersionId: versionId,
+                    symbol,
+                    status: 'open',
+                    source: 'binance_demo_dry_run',
+                    entryPrice: signal.price,
+                    quantity,
+                    investedQuote,
+                    openedAt: new Date(),
+                  },
+                });
+                addEvent('position_opened', { symbol, price: signal.price, source: 'dry_run' });
+                await createAuditEvent({
+                  actorType: 'bot',
+                  eventType: 'position_opened_dry_run',
+                  entityType: 'position',
+                  payload: { symbol, price: signal.price, investedQuote, source: 'binance_demo_dry_run' },
+                });
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : 'Order test failed';
+                addEvent('order_test_failed', { symbol, message: msg });
+              }
             }
           }
         }
