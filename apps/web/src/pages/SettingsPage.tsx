@@ -1,6 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { tradingApi, type BinanceStatus, type BinanceBalance, type ReconcileResult } from '../api/trading.ts';
+import {
+  tradingApi,
+  settingsApi,
+  type BinanceStatus,
+  type BinanceBalance,
+  type ReconcileResult,
+  type BinanceCredentialInfo,
+} from '../api/trading.ts';
+
+const inputClass =
+  'w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
+const labelClass = 'mb-1 block text-sm font-medium text-text-secondary';
 
 export function SettingsPage() {
   const [binanceStatus, setBinanceStatus] = useState<BinanceStatus | null>(null);
@@ -61,10 +72,13 @@ export function SettingsPage() {
       )}
 
       <div className="space-y-4">
+        {/* Binance API Credentials */}
+        <CredentialsSection onCredentialChange={fetchData} />
+
         {/* Binance Connection */}
         <div className="rounded-lg border border-border bg-bg-secondary p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-medium text-text-primary">Exchange / Binance</h2>
+            <h2 className="text-sm font-medium text-text-primary">Estado de Conexion</h2>
             {binanceStatus && (
               <span
                 className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -175,7 +189,7 @@ export function SettingsPage() {
             Entorno actual: <span className="font-medium text-text-primary">{binanceStatus?.environment ?? 'demo'}</span>
           </p>
           <p className="mt-1 text-xs text-text-muted">
-            Configurado via variable de entorno BINANCE_ENV. Valores: demo (por defecto), testnet, production.
+            Configurado via credenciales o variable de entorno BINANCE_ENV. Valores: demo (por defecto), testnet, production.
           </p>
         </div>
 
@@ -223,6 +237,211 @@ export function SettingsPage() {
           <p className="text-sm text-text-muted">Sin canales configurados.</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ---- Credentials Management Section ---- */
+
+function CredentialsSection({ onCredentialChange }: { onCredentialChange: () => void }) {
+  const [credentials, setCredentials] = useState<BinanceCredentialInfo[]>([]);
+  const [apiKey, setApiKey] = useState('');
+  const [apiSecret, setApiSecret] = useState('');
+  const [environment, setEnvironment] = useState('demo');
+  const [label, setLabel] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [loadingCreds, setLoadingCreds] = useState(true);
+
+  const fetchCredentials = useCallback(async () => {
+    try {
+      const res = await settingsApi.getCredentials();
+      setCredentials(res.data);
+    } catch {
+      // Credentials endpoint may not exist yet; silently ignore
+    } finally {
+      setLoadingCreds(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCredentials();
+  }, [fetchCredentials]);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setFeedback(null);
+
+    try {
+      await settingsApi.saveCredentials({
+        apiKey,
+        apiSecret,
+        environment,
+        label: label.trim() || undefined,
+      });
+      setFeedback({ type: 'success', message: 'Credenciales guardadas correctamente.' });
+      setApiKey('');
+      setApiSecret('');
+      setLabel('');
+      fetchCredentials();
+      onCredentialChange();
+    } catch (err) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Error guardando credenciales' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRevoke(id: string) {
+    setRevokingId(id);
+    setFeedback(null);
+    try {
+      await settingsApi.revokeCredentials(id);
+      setFeedback({ type: 'success', message: 'Credenciales revocadas.' });
+      fetchCredentials();
+      onCredentialChange();
+    } catch (err) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Error revocando credenciales' });
+    } finally {
+      setRevokingId(null);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-bg-secondary p-4">
+      <h2 className="mb-3 text-sm font-medium text-text-primary">Credenciales Binance API</h2>
+
+      {/* Security note */}
+      <div className="mb-4 rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-xs text-text-muted">
+        Las credenciales se guardan cifradas en la base de datos (AES-256-GCM).
+        Nunca se muestran completas tras guardar.
+      </div>
+
+      {/* Feedback */}
+      {feedback && (
+        <div
+          className={`mb-4 rounded-lg border px-3 py-2 text-xs ${
+            feedback.type === 'success'
+              ? 'border-success/30 bg-success/5 text-success'
+              : 'border-danger/30 bg-danger/5 text-danger'
+          }`}
+        >
+          {feedback.message}
+        </div>
+      )}
+
+      {/* Credentials Form */}
+      <form onSubmit={handleSave} className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className={labelClass}>API Key</label>
+            <input
+              type="password"
+              className={inputClass}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="API Key de Binance"
+              required
+              autoComplete="off"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>API Secret</label>
+            <input
+              type="password"
+              className={inputClass}
+              value={apiSecret}
+              onChange={(e) => setApiSecret(e.target.value)}
+              placeholder="API Secret de Binance"
+              required
+              autoComplete="off"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className={labelClass}>Entorno</label>
+            <select
+              className={inputClass}
+              value={environment}
+              onChange={(e) => setEnvironment(e.target.value)}
+            >
+              <option value="demo">Demo</option>
+              <option value="testnet">Testnet</option>
+              <option value="production">Production</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Etiqueta (opcional)</label>
+            <input
+              type="text"
+              className={inputClass}
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Ej: Binance Demo Principal"
+              autoComplete="off"
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={saving || !apiKey || !apiSecret}
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {saving ? 'Guardando...' : 'Guardar Credenciales'}
+        </button>
+      </form>
+
+      {/* Saved Credentials List */}
+      {loadingCreds ? (
+        <p className="mt-4 text-sm text-text-muted">Cargando credenciales...</p>
+      ) : credentials.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <h3 className="text-xs font-medium text-text-muted uppercase tracking-wide">Credenciales Guardadas</h3>
+          {credentials.map((cred) => (
+            <div
+              key={cred.id}
+              className="flex flex-col gap-2 rounded-md border border-border bg-bg-primary p-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                  <span>{cred.label || cred.environment}</span>
+                  <span
+                    className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                      cred.enabled
+                        ? 'bg-success/10 text-success'
+                        : 'bg-danger/10 text-danger'
+                    }`}
+                  >
+                    {cred.enabled ? 'Activa' : 'Revocada'}
+                  </span>
+                  <span className="rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium text-text-muted">
+                    {cred.environment}
+                  </span>
+                </div>
+                <div className="text-xs text-text-muted">
+                  <span>API Key: {cred.apiKeyPreview}</span>
+                  <span className="mx-2">|</span>
+                  <span>Creada: {new Date(cred.createdAt).toLocaleDateString('es-ES')}</span>
+                </div>
+              </div>
+              {cred.enabled && (
+                <button
+                  onClick={() => handleRevoke(cred.id)}
+                  disabled={revokingId === cred.id}
+                  className="shrink-0 rounded-md border border-danger/30 bg-danger/10 px-3 py-1 text-xs font-medium text-danger transition-colors hover:bg-danger/20 disabled:opacity-50"
+                >
+                  {revokingId === cred.id ? 'Revocando...' : 'Revocar'}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

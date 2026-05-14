@@ -9,6 +9,10 @@ global.fetch = mockFetch;
 vi.mock('../infrastructure/db/prisma.js', () => ({
   prisma: {
     auditEvent: { create: vi.fn().mockResolvedValue({ id: 'audit1' }) },
+    exchangeCredential: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     $queryRaw: vi.fn().mockResolvedValue([]),
   },
 }));
@@ -44,15 +48,9 @@ describe('Binance API', () => {
   });
 
   it('should return error for account without credentials', async () => {
-    const originalKey = process.env.BINANCE_API_KEY;
-    const originalSecret = process.env.BINANCE_API_SECRET;
-    delete process.env.BINANCE_API_KEY;
-    delete process.env.BINANCE_API_SECRET;
     const app = buildApp();
     const res = await app.inject({ method: 'GET', url: '/api/binance/account' });
     expect(res.json().success).toBe(false);
-    process.env.BINANCE_API_KEY = originalKey;
-    process.env.BINANCE_API_SECRET = originalSecret;
   });
 
   it('should validate required fields for test-order', async () => {

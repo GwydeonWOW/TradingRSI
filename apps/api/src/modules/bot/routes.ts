@@ -6,6 +6,7 @@ import { createAuditEvent } from '../audit/helpers.js';
 import { BinanceStreamManager, processExecutionReport } from '../../infrastructure/websocket/index.js';
 import { BINANCE_ENVIRONMENTS } from '@cryptorsi/shared';
 import { logger } from '../../infrastructure/logger/index.js';
+import { getBinanceCredentials } from '../../infrastructure/credentials/index.js';
 
 // Singleton stream manager
 let streamManager: BinanceStreamManager | null = null;
@@ -64,10 +65,9 @@ export async function botRoutes(app: FastifyInstance) {
       return { success: false, error: { code: 'INVALID_STRATEGY', message: 'Strategy not found' } };
     }
 
-    const apiKey = process.env.BINANCE_API_KEY;
-    const apiSecret = process.env.BINANCE_API_SECRET;
-    if (!apiKey || !apiSecret) {
-      return { success: false, error: { code: 'NOT_CONFIGURED', message: 'Binance credentials not configured' } };
+    const creds = await getBinanceCredentials();
+    if (!creds) {
+      return { success: false, error: { code: 'NOT_CONFIGURED', message: 'Binance credentials not configured. Go to Settings.' } };
     }
 
     const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
@@ -78,7 +78,7 @@ export async function botRoutes(app: FastifyInstance) {
       await streamManager.stop();
     }
 
-    streamManager = new BinanceStreamManager(env, apiKey, apiSecret);
+    streamManager = new BinanceStreamManager(env, creds.apiKey, creds.apiSecret);
     streamManager.setExecutionReportHandler(processExecutionReport);
 
     // Subscribe to kline streams for all symbol/timeframe combinations
@@ -168,9 +168,8 @@ export async function botRoutes(app: FastifyInstance) {
 
     // Start WebSocket streams for non-simulation modes
     if (strategy.mode !== 'simulation') {
-      const apiKey = process.env.BINANCE_API_KEY;
-      const apiSecret = process.env.BINANCE_API_SECRET;
-      if (apiKey && apiSecret) {
+      const creds = await getBinanceCredentials();
+      if (creds) {
         const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
         const config = strategy.versions[0]!.config as { symbols: string[]; timeframes: string[] };
 
@@ -179,7 +178,7 @@ export async function botRoutes(app: FastifyInstance) {
           await streamManager.stop();
         }
 
-        streamManager = new BinanceStreamManager(env, apiKey, apiSecret);
+        streamManager = new BinanceStreamManager(env, creds.apiKey, creds.apiSecret);
         streamManager.setExecutionReportHandler(processExecutionReport);
 
         for (const symbol of config.symbols) {

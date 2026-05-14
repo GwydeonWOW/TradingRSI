@@ -8,6 +8,7 @@ import { binanceRoutes } from './modules/binance/routes.js';
 import { positionRoutes } from './modules/positions/routes.js';
 import { orderRoutes } from './modules/orders/routes.js';
 import { backtestRoutes } from './modules/backtests/routes.js';
+import { settingsRoutes } from './modules/settings/routes.js';
 import { prisma } from './infrastructure/db/prisma.js';
 
 const port = Number(process.env.PORT) || 3000;
@@ -31,6 +32,7 @@ async function start() {
   await app.register(positionRoutes);
   await app.register(orderRoutes);
   await app.register(backtestRoutes);
+  await app.register(settingsRoutes);
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {

@@ -12,6 +12,7 @@ import {
 import { assertLiveGuard, isLiveEnvironment } from '../../domain/guards/index.js';
 import { createAuditEvent } from '../audit/helpers.js';
 import { getBotState, setBotState } from './state.js';
+import { getBinanceCredentials } from '../../infrastructure/credentials/index.js';
 import type { StrategyConfig } from '@cryptorsi/shared';
 import { BINANCE_ENVIRONMENTS } from '@cryptorsi/shared';
 
@@ -87,12 +88,11 @@ export async function runEvaluationCycle(): Promise<void> {
           marketData = generateSimulationData(symbol, timeframe);
         } else {
           // Real Binance data — no simulation fallback
-          const apiKey = process.env.BINANCE_API_KEY;
-          const apiSecret = process.env.BINANCE_API_SECRET;
           const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
 
-          if (!apiKey || !apiSecret) {
-            addEvent('error', { message: 'Binance credentials not configured, skipping cycle' });
+          const creds = await getBinanceCredentials(env);
+          if (!creds) {
+            addEvent('error', { message: 'Binance credentials not configured. Configure them in Settings.' });
             continue;
           }
 
@@ -248,15 +248,15 @@ export async function runEvaluationCycle(): Promise<void> {
             !config.execution.dryRun
           ) {
             // ── Real Binance Demo execution ──
-            const apiKey = process.env.BINANCE_API_KEY;
-            const apiSecret = process.env.BINANCE_API_SECRET;
+            const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
 
-            if (!apiKey || !apiSecret) {
-              addEvent('error', { message: 'Binance credentials not configured for live execution' });
+            const creds = await getBinanceCredentials(env);
+            if (!creds) {
+              addEvent('error', { message: 'Binance credentials not configured. Configure them in Settings.' });
               continue;
             }
 
-            const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
+            const { apiKey, apiSecret } = creds;
 
             // Hard guard before placing any real order in a live environment
             if (isLiveEnvironment(env)) {
@@ -506,12 +506,14 @@ export async function runEvaluationCycle(): Promise<void> {
             }
           } else if (strategy.mode === 'binance_demo_dry_run' || (strategy.mode !== 'simulation' && config.execution.dryRun)) {
             // Binance Demo dry-run: validate order with /api/v3/order/test
-            const apiKey = process.env.BINANCE_API_KEY;
-            const apiSecret = process.env.BINANCE_API_SECRET;
+            const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
 
-            if (apiKey && apiSecret && signal.signalType === 'BUY_SIGNAL') {
+            const creds = await getBinanceCredentials(env);
+            if (!creds) {
+              addEvent('error', { message: 'Binance credentials not configured. Configure them in Settings.' });
+            } else if (signal.signalType === 'BUY_SIGNAL') {
+              const { apiKey, apiSecret } = creds;
               try {
-                const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
                 const envConfig = BINANCE_ENVIRONMENTS[env];
 
                 // Build signed test order request

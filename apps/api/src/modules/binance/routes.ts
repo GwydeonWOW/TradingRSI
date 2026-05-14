@@ -6,6 +6,7 @@ import { logger } from '../../infrastructure/logger/index.js';
 import { prisma } from '../../infrastructure/db/prisma.js';
 import { fetchOpenOrders } from '../../domain/execution/binance.js';
 import { checkLiveReadiness, type LiveTradingChecklist } from '../../domain/guards/index.js';
+import { getBinanceCredentials } from '../../infrastructure/credentials/index.js';
 
 // ---------------------------------------------------------------------------
 // Minimal inline signed-request helpers (avoids needing @cryptorsi/binance-client
@@ -142,19 +143,15 @@ function getBaseUrl(): string {
   return BINANCE_ENVIRONMENTS[getEnv()].restBaseUrl;
 }
 
-function getCredentials(): { apiKey: string; apiSecret: string } | null {
-  const apiKey = process.env.BINANCE_API_KEY;
-  const apiSecret = process.env.BINANCE_API_SECRET;
-  if (!apiKey || !apiSecret) return null;
-  return { apiKey, apiSecret };
+async function getCredentials(): Promise<{ apiKey: string; apiSecret: string } | null> {
+  return getBinanceCredentials(getEnv());
 }
 
 export async function binanceRoutes(app: FastifyInstance) {
   // GET /api/binance/status
   app.get('/api/binance/status', async () => {
     const env = getEnv();
-    const hasApiKey = !!process.env.BINANCE_API_KEY;
-    const hasApiSecret = !!process.env.BINANCE_API_SECRET;
+    const creds = await getBinanceCredentials(env);
 
     let connected = false;
     let latency = 0;
@@ -171,7 +168,7 @@ export async function binanceRoutes(app: FastifyInstance) {
       success: true,
       data: {
         environment: env,
-        configured: hasApiKey && hasApiSecret,
+        configured: !!creds,
         connected,
         latency: connected ? latency : null,
         endpoints: BINANCE_ENVIRONMENTS[env],
@@ -181,7 +178,7 @@ export async function binanceRoutes(app: FastifyInstance) {
 
   // GET /api/binance/account
   app.get('/api/binance/account', async () => {
-    const creds = getCredentials();
+    const creds = await getCredentials();
     if (!creds) {
       return { success: false, error: { code: 'NOT_CONFIGURED', message: 'Binance API credentials not configured' } };
     }
@@ -200,7 +197,7 @@ export async function binanceRoutes(app: FastifyInstance) {
 
   // POST /api/binance/test-order
   app.post('/api/binance/test-order', async (request) => {
-    const creds = getCredentials();
+    const creds = await getCredentials();
     if (!creds) {
       return { success: false, error: { code: 'NOT_CONFIGURED', message: 'Binance API credentials not configured' } };
     }
@@ -250,7 +247,7 @@ export async function binanceRoutes(app: FastifyInstance) {
 
   // POST /api/binance/reconcile
   app.post('/api/binance/reconcile', async () => {
-    const creds = getCredentials();
+    const creds = await getCredentials();
     if (!creds) {
       return { success: false, error: { code: 'NOT_CONFIGURED', message: 'Binance API credentials not configured' } };
     }
@@ -420,7 +417,7 @@ export async function binanceRoutes(app: FastifyInstance) {
 
   // GET /api/binance/open-orders
   app.get('/api/binance/open-orders', async (request) => {
-    const creds = getCredentials();
+    const creds = await getCredentials();
     if (!creds) {
       return { success: false, error: { code: 'NOT_CONFIGURED', message: 'Binance API credentials not configured' } };
     }
@@ -503,7 +500,7 @@ export async function binanceRoutes(app: FastifyInstance) {
 
   // POST /api/binance/listen-key
   app.post('/api/binance/listen-key', async () => {
-    const creds = getCredentials();
+    const creds = await getCredentials();
     if (!creds) {
       return { success: false, error: { code: 'NOT_CONFIGURED', message: 'Binance API credentials not configured' } };
     }
@@ -529,7 +526,7 @@ export async function binanceRoutes(app: FastifyInstance) {
 
   // PUT /api/binance/listen-key
   app.put('/api/binance/listen-key', async (request) => {
-    const creds = getCredentials();
+    const creds = await getCredentials();
     if (!creds) {
       return { success: false, error: { code: 'NOT_CONFIGURED', message: 'Binance API credentials not configured' } };
     }
@@ -599,7 +596,7 @@ export async function binanceRoutes(app: FastifyInstance) {
 
       // 8. Check credentials valid (can reach account endpoint)
       let credentialsValid = false;
-      const creds = getCredentials();
+      const creds = await getCredentials();
       if (creds) {
         try {
           await signedGet(getBaseUrl(), '/v3/account', {}, creds.apiKey, creds.apiSecret);

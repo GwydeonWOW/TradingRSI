@@ -114,6 +114,24 @@ export interface PromoteResult {
   message: string;
 }
 
+export interface BinanceCredentialInfo {
+  id: string;
+  environment: string;
+  label: string;
+  enabled: boolean;
+  apiKeyPreview: string;
+  createdAt: string;
+}
+
+export const settingsApi = {
+  getCredentials: () =>
+    apiGet<{ success: true; data: BinanceCredentialInfo[] }>('/settings/binance-credentials'),
+  saveCredentials: (data: { apiKey: string; apiSecret: string; environment: string; label?: string }) =>
+    apiPost<{ success: true; data: { id: string; message: string } }>('/settings/binance-credentials', data),
+  revokeCredentials: (id: string) =>
+    apiPost<{ success: true; data: { message: string } }>(`/settings/binance-credentials/${id}/revoke`),
+};
+
 export const tradingApi = {
   getPositions: (params?: Record<string, string>) => {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
