@@ -4,9 +4,10 @@ WORKDIR /app
 
 # Install dependencies
 FROM base AS deps
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml prisma.config.ts ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/indicators/package.json ./packages/indicators/
 COPY packages/binance-client/package.json ./packages/binance-client/
 COPY prisma/ ./prisma/
 RUN pnpm install --frozen-lockfile
@@ -16,18 +17,31 @@ FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=deps /app/packages/indicators/node_modules ./packages/indicators/node_modules
+COPY --from=deps /app/packages/binance-client/node_modules ./packages/binance-client/node_modules
 COPY . .
 RUN pnpm --filter api build
+RUN npx prisma generate
 
 # Production
 FROM base AS prod
+RUN apk add --no-cache curl
 COPY --from=build /app/apps/api/dist ./dist
-COPY --from=build /app/apps/api/package.json ./
+COPY --from=build /app/apps/api/package.json ./apps/api/
+COPY --from=build /app/apps/api/entrypoint.sh ./entrypoint.sh
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/shared ./packages/shared
+COPY --from=build /app/packages/indicators ./packages/indicators
+COPY --from=build /app/packages/binance-client ./packages/binance-client
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/prisma.config.ts ./
 COPY --from=build /app/packages/shared/src/generated ./packages/shared/src/generated
+COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
+
+RUN chmod +x ./entrypoint.sh
 
 ENV NODE_ENV=production
 EXPOSE 3000
-CMD ["node", "dist/server.js"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
+ENTRYPOINT ["./entrypoint.sh"]

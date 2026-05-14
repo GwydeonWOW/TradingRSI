@@ -2,57 +2,66 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: cryptorsi
-      POSTGRES_PASSWORD: cryptorsi
-      POSTGRES_DB: cryptorsi
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-cryptorsi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cryptorsi}
+      POSTGRES_DB: ${POSTGRES_DB:-cryptorsi}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cryptorsi"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cryptorsi}"]
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     ports:
-      - "3000:3000"
+      - "${API_PORT:-3000}:3000"
     environment:
-      DATABASE_URL: postgresql://cryptorsi:cryptorsi@postgres:5432/cryptorsi
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cryptorsi}:${POSTGRES_PASSWORD:-cryptorsi}@postgres:5432/${POSTGRES_DB:-cryptorsi}
       NODE_ENV: production
       PORT: 3000
       HOST: 0.0.0.0
-      LOG_LEVEL: info
-      BINANCE_ENV: demo
-      ALLOW_LIVE_TRADING: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      BINANCE_ENV: ${BINANCE_ENV:-demo}
+      BINANCE_API_KEY: ${BINANCE_API_KEY:-}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
+      ALLOW_LIVE_TRADING: ${ALLOW_LIVE_TRADING:-false}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
     ports:
-      - "5173:80"
+      - "${WEB_PORT:-80}:80"
     depends_on:
       - api
+    restart: unless-stopped
 
   worker:
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
     environment:
-      DATABASE_URL: postgresql://cryptorsi:cryptorsi@postgres:5432/cryptorsi
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cryptorsi}:${POSTGRES_PASSWORD:-cryptorsi}@postgres:5432/${POSTGRES_DB:-cryptorsi}
       NODE_ENV: production
-      LOG_LEVEL: info
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      BINANCE_ENV: ${BINANCE_ENV:-demo}
+      BINANCE_API_KEY: ${BINANCE_API_KEY:-}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pgdata:
