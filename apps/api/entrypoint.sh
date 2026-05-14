@@ -8,4 +8,4 @@ echo "Running database migrations..."
 npx prisma migrate deploy --config ./prisma.config.ts
 
 echo "Starting API server..."
-exec node dist/server.js
+exec node apps/api/dist/server.js
