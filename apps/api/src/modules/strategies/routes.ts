@@ -5,6 +5,36 @@ import { logger } from '../../infrastructure/logger/index.js';
 import { createAuditEvent } from '../audit/helpers.js';
 import { canPromoteToLive, checkLiveReadiness, type LiveTradingChecklist } from '../../domain/guards/index.js';
 
+type StrategyRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  mode: string;
+  environment: string;
+  createdAt: Date;
+  updatedAt: Date;
+  versions: Array<{ id: string; version: number; config: unknown; createdAt: Date }>;
+};
+
+function formatStrategy(s: StrategyRow) {
+  const latestVersion = s.versions[0];
+  const config = latestVersion?.config as Record<string, unknown> | undefined;
+  return {
+    id: s.id,
+    name: s.name,
+    description: s.description,
+    status: s.status,
+    mode: s.mode,
+    environment: s.environment,
+    currentVersion: latestVersion?.version ?? 0,
+    symbols: (config?.['symbols'] as string[]) ?? [],
+    updatedAt: s.updatedAt,
+    createdAt: s.createdAt,
+    versions: s.versions.map(v => ({ id: v.id, version: v.version, createdAt: v.createdAt })),
+  };
+}
+
 export async function strategyRoutes(app: FastifyInstance) {
   // GET /api/strategies - List strategies (paginated)
   app.get('/api/strategies', async (request, reply) => {
@@ -105,7 +135,7 @@ export async function strategyRoutes(app: FastifyInstance) {
         payload: { name, mode, environment },
       });
 
-      return reply.code(201).send({ success: true, data: strategy });
+      return reply.code(201).send({ success: true, data: formatStrategy(strategy) });
     } catch (err) {
       logger.error(err, 'Failed to create strategy');
       return reply.code(500).send({
@@ -158,7 +188,7 @@ export async function strategyRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         success: true,
         data: {
-          ...strategy,
+          ...formatStrategy(strategy),
           metrics: {
             signalCount,
             orderCount,
@@ -247,7 +277,7 @@ export async function strategyRoutes(app: FastifyInstance) {
         payload: { updatedFields: Object.keys(updateData), configChanged: body['config'] !== undefined },
       });
 
-      return reply.code(200).send({ success: true, data: updated });
+      return reply.code(200).send({ success: true, data: formatStrategy(updated) });
     } catch (err) {
       logger.error(err, 'Failed to update strategy');
       return reply.code(500).send({
@@ -303,7 +333,7 @@ export async function strategyRoutes(app: FastifyInstance) {
         payload: { sourceStrategyId: id, sourceName: existing.name },
       });
 
-      return reply.code(201).send({ success: true, data: duplicated });
+      return reply.code(201).send({ success: true, data: formatStrategy(duplicated) });
     } catch (err) {
       logger.error(err, 'Failed to duplicate strategy');
       return reply.code(500).send({
@@ -336,6 +366,7 @@ export async function strategyRoutes(app: FastifyInstance) {
       const updated = await prisma.strategy.update({
         where: { id },
         data: { status: 'active' },
+        include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
       });
 
       await createAuditEvent({
@@ -346,7 +377,7 @@ export async function strategyRoutes(app: FastifyInstance) {
         payload: { previousStatus: existing.status },
       });
 
-      return reply.code(200).send({ success: true, data: updated });
+      return reply.code(200).send({ success: true, data: formatStrategy(updated) });
     } catch (err) {
       logger.error(err, 'Failed to activate strategy');
       return reply.code(500).send({
@@ -373,6 +404,7 @@ export async function strategyRoutes(app: FastifyInstance) {
       const updated = await prisma.strategy.update({
         where: { id },
         data: { status: 'paused' },
+        include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
       });
 
       await createAuditEvent({
@@ -383,7 +415,7 @@ export async function strategyRoutes(app: FastifyInstance) {
         payload: { previousStatus: existing.status },
       });
 
-      return reply.code(200).send({ success: true, data: updated });
+      return reply.code(200).send({ success: true, data: formatStrategy(updated) });
     } catch (err) {
       logger.error(err, 'Failed to pause strategy');
       return reply.code(500).send({
