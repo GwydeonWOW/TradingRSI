@@ -7,14 +7,33 @@ const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'] as const;
 interface PriceData {
   symbol: string;
   price: number | null;
+  rsi: number | null;
+  change24h: number | null;
   error: boolean;
+}
+
+function calculateRSI(closes: number[], period = 14): number | null {
+  if (closes.length < period + 1) return null;
+  let gains = 0;
+  let losses = 0;
+  for (let i = closes.length - period; i < closes.length; i++) {
+    const change = closes[i]! - closes[i - 1]!;
+    if (change > 0) gains += change;
+    else losses += Math.abs(change);
+  }
+  const avgGain = gains / period;
+  const avgLoss = losses / period;
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return 100 - 100 / (1 + rs);
 }
 
 export function MarketPage() {
   const [connected, setConnected] = useState<boolean | null>(null);
+  const [environment, setEnvironment] = useState<string>('demo');
   const [loading, setLoading] = useState(true);
   const [prices, setPrices] = useState<PriceData[]>(
-    SYMBOLS.map((s) => ({ symbol: s, price: null, error: false }))
+    SYMBOLS.map((s) => ({ symbol: s, price: null, rsi: null, change24h: null, error: false }))
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -23,6 +42,7 @@ export function MarketPage() {
       const statusRes = await tradingApi.getBinanceStatus();
       const isConnected = statusRes.data.connected && statusRes.data.configured;
       setConnected(isConnected);
+      setEnvironment(statusRes.data.environment);
 
       if (!isConnected) {
         setLoading(false);
@@ -35,15 +55,21 @@ export function MarketPage() {
           const klines = res.data;
           if (klines.length > 0) {
             const last = klines[klines.length - 1]!;
-            return { symbol, price: parseFloat(last.close), error: false } as PriceData;
+            const closes = klines.map((k) => parseFloat(k.close));
+            const rsi = calculateRSI(closes);
+            const first = klines[0]!;
+            const change24h = parseFloat(first.open) > 0
+              ? ((parseFloat(last.close) - parseFloat(first.open)) / parseFloat(first.open)) * 100
+              : null;
+            return { symbol, price: parseFloat(last.close), rsi, change24h, error: false } as PriceData;
           }
-          return { symbol, price: null, error: true } as PriceData;
+          return { symbol, price: null, rsi: null, change24h: null, error: true } as PriceData;
         })
       );
 
       setPrices(
         results.map((r, i) =>
-          r.status === 'fulfilled' ? r.value : ({ symbol: SYMBOLS[i]!, price: null, error: true } as PriceData)
+          r.status === 'fulfilled' ? r.value : ({ symbol: SYMBOLS[i]!, price: null, rsi: null, change24h: null, error: true } as PriceData)
         )
       );
       setError(null);
@@ -107,6 +133,13 @@ export function MarketPage() {
         </div>
       ) : (
         <>
+          <div className="mb-4 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-medium text-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              Datos de Binance {environment === 'demo' ? 'Demo' : environment}
+            </span>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {prices.map((p) => (
               <div
@@ -119,11 +152,45 @@ export function MarketPage() {
                 {p.error ? (
                   <p className="mt-1 text-lg font-semibold text-text-muted">-</p>
                 ) : (
-                  <p className="mt-1 text-2xl font-semibold text-text-primary">
-                    {p.price !== null ? `$${p.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
-                  </p>
+                  <>
+                    <p className="mt-1 text-2xl font-semibold text-text-primary">
+                      {p.price !== null ? `$${p.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    </p>
+                    {p.change24h !== null && (
+                      <p className={`mt-0.5 text-xs ${p.change24h >= 0 ? 'text-success' : 'text-danger'}`}>
+                        {p.change24h >= 0 ? '+' : ''}{p.change24h.toFixed(2)}%
+                      </p>
+                    )}
+                  </>
                 )}
-                <p className="mt-1 text-xs text-text-muted">USD</p>
+                <div className="mt-2 border-t border-border pt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-text-muted">RSI (14)</span>
+                    <span
+                      className={`text-xs font-medium ${
+                        p.rsi === null
+                          ? 'text-text-muted'
+                          : p.rsi < 30
+                            ? 'text-success'
+                            : p.rsi > 70
+                              ? 'text-danger'
+                              : 'text-text-primary'
+                      }`}
+                    >
+                      {p.rsi !== null ? p.rsi.toFixed(1) : '-'}
+                    </span>
+                  </div>
+                  {p.rsi !== null && (
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-tertiary">
+                      <div
+                        className={`h-full rounded-full ${
+                          p.rsi < 30 ? 'bg-success' : p.rsi > 70 ? 'bg-danger' : 'bg-accent'
+                        }`}
+                        style={{ width: `${p.rsi}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -132,7 +199,7 @@ export function MarketPage() {
             <h2 className="mb-3 text-sm font-medium text-text-secondary">Watchlist</h2>
             <p className="text-sm text-text-muted">
               {prices.some((p) => p.price !== null)
-                ? 'Precios actualizados cada 30 segundos.'
+                ? `Precios y RSI actualizados cada 30 segundos. Fuente: Binance ${environment === 'demo' ? 'Demo' : environment}.`
                 : 'Sin datos de precios disponibles.'}
             </p>
           </div>

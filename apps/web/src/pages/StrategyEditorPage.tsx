@@ -57,6 +57,7 @@ export function StrategyEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [config, setConfig] = useState<StrategyConfig>(defaultConfig);
+  const [mode, setMode] = useState<string>('binance_demo');
 
   useEffect(() => {
     if (!id) return;
@@ -157,7 +158,7 @@ export function StrategyEditorPage() {
 
       {/* Step content */}
       <div className="rounded-lg border border-border bg-bg-secondary p-6">
-        {step === 0 && <StepGeneral config={config} setConfig={setConfig} />}
+        {step === 0 && <StepGeneral config={config} setConfig={setConfig} mode={mode} setMode={setMode} />}
         {step === 1 && (
           <StepSymbolsTimeframes
             config={config}
@@ -215,13 +216,29 @@ const labelClass = 'mb-1 block text-sm font-medium text-text-secondary';
 function StepGeneral({
   config,
   setConfig,
+  mode,
+  setMode,
 }: {
   config: StrategyConfig;
   setConfig: React.Dispatch<React.SetStateAction<StrategyConfig>>;
+  mode: string;
+  setMode: React.Dispatch<React.SetStateAction<string>>;
 }) {
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-text-primary">General</h2>
+      <div>
+        <label className={labelClass}>Modo de ejecucion</label>
+        <select
+          className={inputClass}
+          value={mode}
+          onChange={(e) => setMode(e.target.value)}
+        >
+          <option value="simulation">Simulation</option>
+          <option value="binance_demo">Binance Demo</option>
+          <option value="binance_live">Binance Live</option>
+        </select>
+      </div>
       <div>
         <label className={labelClass}>Periodo SMA (filtro)</label>
         <input
@@ -556,6 +573,11 @@ function StepExecution({
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-text-primary">Ejecucion</h2>
+      {!config.execution.dryRun && (
+        <div className="rounded-lg border border-warning bg-warning/10 px-4 py-3 text-sm font-medium text-warning">
+          ATENCION: Las ordenes se ejecutaran con dinero real en Binance Demo
+        </div>
+      )}
       <div>
         <label className={labelClass}>Tipo de orden</label>
         <select

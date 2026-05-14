@@ -5,6 +5,7 @@ import { EmptyState } from '../components/EmptyState.tsx';
 import { BotStatusBadge } from '../components/BotStatusBadge.tsx';
 import { botApi, type BotStatus, type BotEvent, type BotStatusType } from '../api/bot.ts';
 import { strategiesApi, type StrategyListItem } from '../api/strategies.ts';
+import { tradingApi, type BinanceOpenOrder, type ReconcileResult } from '../api/trading.ts';
 
 function formatTime(ts: number | null): string {
   if (!ts) return '--';
@@ -105,6 +106,10 @@ export function BotPage() {
   const [confirmStop, setConfirmStop] = useState(false);
   const [confirmKill, setConfirmKill] = useState(false);
   const [killInput, setKillInput] = useState('');
+  const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
+  const [reconcileLoading, setReconcileLoading] = useState(false);
+  const [openOrders, setOpenOrders] = useState<BinanceOpenOrder[]>([]);
+  const [openOrdersLoading, setOpenOrdersLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -195,6 +200,38 @@ export function BotPage() {
     }
   };
 
+  const handleReconcile = async () => {
+    setReconcileLoading(true);
+    try {
+      const res = await tradingApi.reconcile();
+      if (res.success) {
+        setReconcileResult(res.data);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error reconciliando');
+    } finally {
+      setReconcileLoading(false);
+    }
+  };
+
+  const handleFetchOpenOrders = async () => {
+    setOpenOrdersLoading(true);
+    try {
+      const res = await tradingApi.getOpenOrders();
+      if (res.success) {
+        setOpenOrders(res.data);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error cargando ordenes');
+    } finally {
+      setOpenOrdersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    handleFetchOpenOrders();
+  }, []);
+
   if (loading) return <LoadingSpinner size="lg" />;
 
   if (error && !status) {
@@ -253,6 +290,13 @@ export function BotPage() {
             >
               Kill Switch
             </button>
+            <button
+              onClick={handleReconcile}
+              className="rounded-lg border border-accent/50 bg-accent/10 px-4 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent/20 disabled:opacity-50"
+              disabled={reconcileLoading}
+            >
+              {reconcileLoading ? 'Reconciliando...' : 'Reconciliar con Binance'}
+            </button>
           </div>
         </div>
 
@@ -293,6 +337,43 @@ export function BotPage() {
         {status?.errorMessage && (
           <div className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
             {status.errorMessage}
+          </div>
+        )}
+
+        {/* Mode indicator for live binance_demo */}
+        {isRunning && (
+          <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-2 text-sm font-medium text-warning">
+            MODO DEMO - Ordenes reales
+          </div>
+        )}
+
+        {/* Reconciliation results */}
+        {reconcileResult && (
+          <div className="rounded-lg border border-success/30 bg-success/10 p-4">
+            <p className="mb-2 text-sm font-medium text-success">{reconcileResult.message}</p>
+            <p className="text-xs text-text-muted">Entorno: {reconcileResult.environment}</p>
+            {reconcileResult.balances.length > 0 && (
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-text-muted">
+                      <th className="pb-1 pr-4">Asset</th>
+                      <th className="pb-1 pr-4">Free</th>
+                      <th className="pb-1">Locked</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reconcileResult.balances.map((b) => (
+                      <tr key={b.asset} className="text-text-primary">
+                        <td className="py-0.5 pr-4 font-medium">{b.asset}</td>
+                        <td className="py-0.5 pr-4">{b.free}</td>
+                        <td className="py-0.5">{b.locked}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -481,6 +562,55 @@ export function BotPage() {
                 </li>
               ))}
             </ul>
+          )}
+        </div>
+      </div>
+
+      {/* Open Orders */}
+      <div className="mt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-text-secondary">
+            Ordenes Abiertas
+            <span className="ml-2 text-xs text-text-muted">({openOrders.length})</span>
+          </h2>
+          <button
+            onClick={handleFetchOpenOrders}
+            className="text-xs text-accent hover:text-accent-hover"
+            disabled={openOrdersLoading}
+          >
+            {openOrdersLoading ? 'Cargando...' : 'Actualizar'}
+          </button>
+        </div>
+        <div className="rounded-lg border border-border bg-bg-secondary">
+          {openOrders.length === 0 ? (
+            <div className="p-4 text-sm text-text-muted">Sin ordenes abiertas en Binance</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-text-muted">
+                    <th className="px-4 py-2">Symbol</th>
+                    <th className="px-4 py-2">Side</th>
+                    <th className="px-4 py-2">Type</th>
+                    <th className="px-4 py-2">Price</th>
+                    <th className="px-4 py-2">Qty</th>
+                    <th className="px-4 py-2">Filled</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {openOrders.map((o) => (
+                    <tr key={o.orderId} className="text-text-primary">
+                      <td className="px-4 py-2 font-medium">{o.symbol}</td>
+                      <td className={o.side === 'BUY' ? 'text-success' : 'text-danger'}>{o.side}</td>
+                      <td className="px-4 py-2">{o.type}</td>
+                      <td className="px-4 py-2">{o.price}</td>
+                      <td className="px-4 py-2">{o.origQty}</td>
+                      <td className="px-4 py-2">{o.executedQty}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

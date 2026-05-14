@@ -5,6 +5,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { BotStatusBadge } from '../components/BotStatusBadge.tsx';
 import { botApi, type BotStatus, type BotEvent } from '../api/bot.ts';
+import { tradingApi, type BinanceStatus, type BinanceBalance } from '../api/trading.ts';
 
 function formatUptime(startedAt: number | null): string {
   if (!startedAt) return '0h 0m';
@@ -37,15 +38,21 @@ export function DashboardPage() {
   const [events, setEvents] = useState<BotEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [binanceStatus, setBinanceStatus] = useState<BinanceStatus | null>(null);
+  const [balances, setBalances] = useState<BinanceBalance[]>([]);
 
   const fetchData = useCallback(async () => {
     try {
-      const [statusRes, eventsRes] = await Promise.all([
+      const [statusRes, eventsRes, binanceRes] = await Promise.all([
         botApi.getStatus(),
         botApi.getEvents(10),
+        tradingApi.getBinanceStatus().catch(() => null),
       ]);
       setStatus(statusRes.data);
       setEvents(eventsRes.data);
+      if (binanceRes?.success) {
+        setBinanceStatus(binanceRes.data);
+      }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error cargando datos');
@@ -59,6 +66,18 @@ export function DashboardPage() {
     const interval = setInterval(fetchData, 30_000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  useEffect(() => {
+    if (!binanceStatus?.connected || !binanceStatus?.configured) return;
+    tradingApi.getBinanceAccount().then((res) => {
+      if (res.success && 'data' in res) {
+        const nonZero = (res.data as { balances: BinanceBalance[] }).balances.filter(
+          (b) => parseFloat(b.free) > 0 || parseFloat(b.locked) > 0
+        );
+        setBalances(nonZero);
+      }
+    }).catch(() => {});
+  }, [binanceStatus?.connected, binanceStatus?.configured]);
 
   if (loading) return <LoadingSpinner size="lg" />;
 
@@ -105,9 +124,9 @@ export function DashboardPage() {
         />
         <MetricCard
           title="Entorno"
-          value="Binance Demo"
-          subtitle="Modo simulacion"
-          variant="default"
+          value={binanceStatus?.connected ? `Binance ${binanceStatus.environment}` : 'Sin conexion'}
+          subtitle={binanceStatus?.connected ? `Latencia: ${binanceStatus.latency}ms` : 'Verificar configuracion'}
+          variant={binanceStatus?.connected ? 'success' : 'danger'}
         />
         <MetricCard
           title="Estrategia Activa"
@@ -137,6 +156,35 @@ export function DashboardPage() {
           variant={status?.status === 'running' ? 'success' : 'default'}
         />
       </div>
+
+      {/* Balances */}
+      {balances.length > 0 && (
+        <div className="mt-6">
+          <h2 className="mb-3 text-sm font-medium text-text-secondary">Saldos Binance Demo</h2>
+          <div className="rounded-lg border border-border bg-bg-secondary p-4">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-text-muted">
+                    <th className="pb-2 pr-4">Asset</th>
+                    <th className="pb-2 pr-4">Free</th>
+                    <th className="pb-2">Locked</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {balances.map((b) => (
+                    <tr key={b.asset} className="text-text-primary">
+                      <td className="py-2 pr-4 font-medium">{b.asset}</td>
+                      <td className="py-2 pr-4">{parseFloat(b.free).toLocaleString(undefined, { maximumFractionDigits: 8 })}</td>
+                      <td className="py-2">{parseFloat(b.locked).toLocaleString(undefined, { maximumFractionDigits: 8 })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-8">
         <h2 className="mb-3 text-sm font-medium text-text-secondary">Actividad Reciente</h2>

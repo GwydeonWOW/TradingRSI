@@ -3,6 +3,12 @@ import { logger } from '../../infrastructure/logger/index.js';
 import { evaluateSignal, type MarketData } from '../../domain/strategy/evaluate.js';
 import { evaluateRisk, type RiskContext } from '../../domain/risk/evaluate.js';
 import { executeSimulation } from '../../domain/execution/simulation.js';
+import {
+  placeBinanceOrder,
+  processOrderResponse,
+  adjustQuantity,
+  getSymbolInfo,
+} from '../../domain/execution/binance.js';
 import { createAuditEvent } from '../audit/helpers.js';
 import { getBotState, setBotState } from './state.js';
 import type { StrategyConfig } from '@cryptorsi/shared';
@@ -63,33 +69,34 @@ export async function runEvaluationCycle(): Promise<void> {
           // Simulation mode: generate synthetic data
           marketData = generateSimulationData(symbol, timeframe);
         } else {
-          // Real Binance data
+          // Real Binance data — no simulation fallback
           const apiKey = process.env.BINANCE_API_KEY;
           const apiSecret = process.env.BINANCE_API_SECRET;
           const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
 
           if (!apiKey || !apiSecret) {
-            addEvent('error', { message: 'Binance credentials not configured, using simulation data' });
-            marketData = generateSimulationData(symbol, timeframe);
-          } else {
-            try {
-              const envConfig = BINANCE_ENVIRONMENTS[env];
-              const url = `${envConfig.restBaseUrl}/v3/klines?symbol=${symbol}&interval=${timeframe}&limit=50`;
-              const response = await fetch(url);
-              if (!response.ok) {
-                const body = await response.text();
-                throw new Error(`Binance API error ${response.status}: ${body}`);
-              }
-              const raw = await response.json() as (string | number)[][];
-              const closes = raw.map(k => parseFloat(k[4] as string));
-              const currentPrice = parseFloat(raw[raw.length - 1]![4] as string);
-              marketData = { symbol, timeframe, closes, currentPrice, timestamp: Date.now() };
-              addEvent('binance_data', { symbol, timeframe, price: currentPrice, candles: raw.length });
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : 'Failed to fetch Binance data';
-              addEvent('error', { message: msg });
-              marketData = generateSimulationData(symbol, timeframe);
+            addEvent('error', { message: 'Binance credentials not configured, skipping cycle' });
+            continue;
+          }
+
+          try {
+            const envConfig = BINANCE_ENVIRONMENTS[env];
+            const url = `${envConfig.restBaseUrl}/v3/klines?symbol=${symbol}&interval=${timeframe}&limit=50`;
+            const response = await fetch(url);
+            if (!response.ok) {
+              const body = await response.text();
+              throw new Error(`Binance API error ${response.status}: ${body}`);
             }
+            const raw = await response.json() as (string | number)[][];
+            const closes = raw.map(k => parseFloat(k[4] as string));
+            const currentPrice = parseFloat(raw[raw.length - 1]![4] as string);
+            marketData = { symbol, timeframe, closes, currentPrice, timestamp: Date.now() };
+            addEvent('binance_data', { symbol, timeframe, price: currentPrice, candles: raw.length });
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Failed to fetch Binance data';
+            addEvent('error', { message: msg });
+            logger.error({ err, symbol, timeframe }, 'Failed to fetch Binance klines, skipping cycle');
+            continue;
           }
         }
 
@@ -218,6 +225,255 @@ export async function runEvaluationCycle(): Promise<void> {
                 entityType: 'position',
                 entityId: pos.id,
                 payload: { symbol, pnl: result.realizedPnl, pnlPct: result.realizedPnlPct },
+              });
+            }
+          } else if (
+            strategy.mode === 'binance_demo' &&
+            !config.execution.dryRun
+          ) {
+            // ── Real Binance Demo execution ──
+            const apiKey = process.env.BINANCE_API_KEY;
+            const apiSecret = process.env.BINANCE_API_SECRET;
+
+            if (!apiKey || !apiSecret) {
+              addEvent('error', { message: 'Binance credentials not configured for live execution' });
+              continue;
+            }
+
+            const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
+            const envConfig = BINANCE_ENVIRONMENTS[env];
+            const clientOrderId = `cryptorsi_${strategy.id.slice(0, 8)}_${Date.now()}`;
+
+            try {
+              if (signal.signalType === 'BUY_SIGNAL') {
+                const orderResponse = await placeBinanceOrder({
+                  baseUrl: envConfig.restBaseUrl,
+                  apiKey,
+                  apiSecret,
+                  symbol,
+                  side: 'BUY',
+                  type: 'MARKET',
+                  quoteOrderQty: config.risk.quoteAmountPerTrade.toString(),
+                  clientOrderId,
+                });
+
+                const processed = processOrderResponse(orderResponse);
+                addEvent('order_placed', {
+                  symbol,
+                  side: 'BUY',
+                  status: processed.status,
+                  executedQty: processed.executedQty,
+                  avgPrice: processed.avgPrice,
+                });
+
+                // Persist ExchangeOrder
+                const exchangeOrder = await prisma.exchangeOrder.create({
+                  data: {
+                    strategyId: strategy.id,
+                    strategyVersionId: versionId,
+                    exchange: 'binance',
+                    environment: env,
+                    symbol,
+                    side: 'BUY',
+                    type: 'MARKET',
+                    status: processed.status,
+                    clientOrderId: orderResponse.clientOrderId,
+                    exchangeOrderId: orderResponse.orderId.toString(),
+                    quoteAmount: config.risk.quoteAmountPerTrade as number,
+                    executedQuantity: processed.executedQty as number,
+                    cumulativeQuoteQuantity: processed.cumulativeQuoteQty as number,
+                    avgPrice: processed.avgPrice as number,
+                    rawResponse: orderResponse as unknown as Record<string, unknown>,
+                  },
+                });
+
+                // Persist ExchangeFills
+                for (const fill of processed.fills) {
+                  await prisma.exchangeFill.create({
+                    data: {
+                      exchangeOrderId: exchangeOrder.id,
+                      tradeId: fill.tradeId,
+                      price: fill.price as number,
+                      quantity: fill.quantity as number,
+                      quoteQuantity: fill.quoteQuantity as number,
+                      commission: fill.commission as number,
+                      commissionAsset: fill.commissionAsset,
+                      executedAt: new Date(orderResponse.transactTime),
+                      rawEvent: fill as unknown as Record<string, unknown>,
+                    },
+                  });
+                }
+
+                // Open position from real fills
+                if (processed.executedQty > 0) {
+                  const position = await prisma.position.create({
+                    data: {
+                      strategyId: strategy.id,
+                      strategyVersionId: versionId,
+                      symbol,
+                      status: 'open',
+                      source: 'binance_demo',
+                      entryOrderId: exchangeOrder.id,
+                      entryPrice: processed.avgPrice as number,
+                      quantity: processed.executedQty as number,
+                      investedQuote: processed.cumulativeQuoteQty as number,
+                      openedAt: new Date(orderResponse.transactTime),
+                    },
+                  });
+                  addEvent('position_opened', {
+                    symbol,
+                    price: processed.avgPrice,
+                    invested: processed.cumulativeQuoteQty,
+                    source: 'binance_demo',
+                    orderId: exchangeOrder.id,
+                  });
+                  await createAuditEvent({
+                    actorType: 'bot',
+                    eventType: 'position_opened_binance_demo',
+                    entityType: 'position',
+                    entityId: position.id,
+                    payload: {
+                      symbol,
+                      price: processed.avgPrice,
+                      invested: processed.cumulativeQuoteQty,
+                      executedQty: processed.executedQty,
+                      fillsCount: processed.fills.length,
+                      orderId: exchangeOrder.id,
+                    },
+                  });
+                }
+              } else if (signal.signalType === 'SELL_SIGNAL') {
+                // Find open position for this symbol
+                const openPosition = openPositions.find(p => p.symbol === symbol);
+                if (!openPosition) {
+                  addEvent('error', { message: `No open position to sell for ${symbol}` });
+                  continue;
+                }
+
+                const positionQty = Number(openPosition.quantity ?? 0);
+                if (positionQty <= 0) {
+                  addEvent('error', { message: `Position quantity is 0 for ${symbol}` });
+                  continue;
+                }
+
+                // Adjust quantity to LOT_SIZE
+                const symbolInfo = await getSymbolInfo(envConfig.restBaseUrl, symbol);
+                const adjustedQty = adjustQuantity(positionQty, symbolInfo.stepSize);
+
+                if (adjustedQty <= 0) {
+                  addEvent('error', { message: `Adjusted quantity is 0 for ${symbol} (stepSize: ${symbolInfo.stepSize})` });
+                  continue;
+                }
+
+                const orderResponse = await placeBinanceOrder({
+                  baseUrl: envConfig.restBaseUrl,
+                  apiKey,
+                  apiSecret,
+                  symbol,
+                  side: 'SELL',
+                  type: 'MARKET',
+                  quantity: adjustedQty.toString(),
+                  clientOrderId,
+                });
+
+                const processed = processOrderResponse(orderResponse);
+                addEvent('order_placed', {
+                  symbol,
+                  side: 'SELL',
+                  status: processed.status,
+                  executedQty: processed.executedQty,
+                  avgPrice: processed.avgPrice,
+                });
+
+                // Persist ExchangeOrder
+                const exchangeOrder = await prisma.exchangeOrder.create({
+                  data: {
+                    strategyId: strategy.id,
+                    strategyVersionId: versionId,
+                    exchange: 'binance',
+                    environment: env,
+                    symbol,
+                    side: 'SELL',
+                    type: 'MARKET',
+                    status: processed.status,
+                    clientOrderId: orderResponse.clientOrderId,
+                    exchangeOrderId: orderResponse.orderId.toString(),
+                    requestedQuantity: adjustedQty as number,
+                    executedQuantity: processed.executedQty as number,
+                    cumulativeQuoteQuantity: processed.cumulativeQuoteQty as number,
+                    avgPrice: processed.avgPrice as number,
+                    rawResponse: orderResponse as unknown as Record<string, unknown>,
+                  },
+                });
+
+                // Persist ExchangeFills
+                for (const fill of processed.fills) {
+                  await prisma.exchangeFill.create({
+                    data: {
+                      exchangeOrderId: exchangeOrder.id,
+                      tradeId: fill.tradeId,
+                      price: fill.price as number,
+                      quantity: fill.quantity as number,
+                      quoteQuantity: fill.quoteQuantity as number,
+                      commission: fill.commission as number,
+                      commissionAsset: fill.commissionAsset,
+                      executedAt: new Date(orderResponse.transactTime),
+                      rawEvent: fill as unknown as Record<string, unknown>,
+                    },
+                  });
+                }
+
+                // Close position from real fills
+                if (processed.executedQty > 0) {
+                  const entryPrice = Number(openPosition.entryPrice ?? 0);
+                  const investedQuote = Number(openPosition.investedQuote ?? 0);
+                  const exitValue = processed.cumulativeQuoteQty;
+                  const realizedPnl = exitValue - investedQuote;
+                  const realizedPnlPct = investedQuote > 0 ? (realizedPnl / investedQuote) * 100 : 0;
+
+                  await prisma.position.update({
+                    where: { id: openPosition.id },
+                    data: {
+                      status: 'closed',
+                      exitOrderId: exchangeOrder.id,
+                      exitPrice: processed.avgPrice as number,
+                      realizedPnl: realizedPnl as number,
+                      realizedPnlPct: realizedPnlPct as number,
+                      closedAt: new Date(),
+                    },
+                  });
+                  addEvent('position_closed', {
+                    symbol,
+                    pnl: realizedPnl,
+                    pnlPct: realizedPnlPct,
+                    source: 'binance_demo',
+                    orderId: exchangeOrder.id,
+                  });
+                  await createAuditEvent({
+                    actorType: 'bot',
+                    eventType: 'position_closed_binance_demo',
+                    entityType: 'position',
+                    entityId: openPosition.id,
+                    payload: {
+                      symbol,
+                      pnl: realizedPnl,
+                      pnlPct: realizedPnlPct,
+                      exitPrice: processed.avgPrice,
+                      exitValue,
+                      orderId: exchangeOrder.id,
+                    },
+                  });
+                }
+              }
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Order execution failed';
+              addEvent('order_error', { symbol, side: signal.signalType === 'BUY_SIGNAL' ? 'BUY' : 'SELL', message: msg });
+              logger.error({ err, symbol, signalType: signal.signalType }, 'Binance order execution failed');
+              await createAuditEvent({
+                actorType: 'bot',
+                eventType: 'order_error',
+                entityType: 'order',
+                payload: { symbol, side: signal.signalType === 'BUY_SIGNAL' ? 'BUY' : 'SELL', error: msg },
               });
             }
           } else if (strategy.mode === 'binance_demo_dry_run' || (strategy.mode !== 'simulation' && config.execution.dryRun)) {

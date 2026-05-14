@@ -42,7 +42,7 @@ export function NewStrategyPage() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [mode, setMode] = useState('simulation');
+  const [mode, setMode] = useState('binance_demo');
   const [environment, setEnvironment] = useState('demo');
   const [config, setConfig] = useState<StrategyConfig>(defaultConfig);
   const [saving, setSaving] = useState(false);
@@ -125,9 +125,7 @@ export function NewStrategyPage() {
                 onChange={(e) => setMode(e.target.value)}
               >
                 <option value="simulation">Simulation</option>
-                <option value="binance_demo_dry_run">Binance Demo Dry Run</option>
-                <option value="binance_demo_live">Binance Demo Live</option>
-                <option value="binance_live_dry_run">Binance Live Dry Run</option>
+                <option value="binance_demo">Binance Demo</option>
                 <option value="binance_live">Binance Live</option>
               </select>
             </div>
@@ -215,6 +213,11 @@ export function NewStrategyPage() {
                   Dry Run (simulacion)
                 </label>
               </div>
+              {!config.execution.dryRun && mode !== 'simulation' && (
+                <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+                  ATENCION: Las ordenes se ejecutaran con dinero real en Binance Demo
+                </div>
+              )}
             </div>
           </div>
 

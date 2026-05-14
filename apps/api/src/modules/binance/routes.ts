@@ -3,6 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import { createAuditEvent } from '../audit/helpers.js';
 import { BINANCE_ENVIRONMENTS } from '@cryptorsi/shared';
 import { logger } from '../../infrastructure/logger/index.js';
+import { prisma } from '../../infrastructure/db/prisma.js';
+import { fetchOpenOrders } from '../../domain/execution/binance.js';
 
 // ---------------------------------------------------------------------------
 // Minimal inline signed-request helpers (avoids needing @cryptorsi/binance-client
@@ -189,17 +191,146 @@ export async function binanceRoutes(app: FastifyInstance) {
     const env = getEnv();
 
     try {
+      // Fetch account balances
       const account = await signedGet(getBaseUrl(), '/v3/account', {}, creds.apiKey, creds.apiSecret) as {
         balances: Array<{ asset: string; free: string; locked: string }>;
       };
 
       const nonZeroBalances = account.balances.filter(b => parseFloat(b.free) > 0 || parseFloat(b.locked) > 0);
 
+      // Fetch open orders from Binance
+      const binanceOpenOrdersRaw = await fetchOpenOrders(getBaseUrl(), creds.apiKey, creds.apiSecret) as unknown as Array<{
+        symbol: string;
+        orderId: number;
+        clientOrderId: string;
+        side: string;
+        type: string;
+        status: string;
+        executedQty: string;
+        origQty: string;
+        price: string;
+        time: number;
+        updateTime: number;
+      }>;
+
+      // Fetch local DB orders that might be open
+      const localOrders = await prisma.exchangeOrder.findMany({
+        where: {
+          status: { in: ['NEW', 'PARTIALLY_FILLED'] },
+        },
+        include: { fills: true },
+      });
+
+      const divergences: Array<{
+        localOrderId: string;
+        localStatus: string;
+        binanceStatus: string;
+        action: string;
+        clientOrderId?: string;
+        symbol: string;
+      }> = [];
+
+      // Check local orders against Binance
+      for (const localOrder of localOrders) {
+        const binanceMatch = binanceOpenOrdersRaw.find(
+          (bo) => bo.clientOrderId === localOrder.clientOrderId
+            || bo.orderId.toString() === localOrder.exchangeOrderId,
+        );
+
+        if (!binanceMatch) {
+          // Order not in Binance open orders — it was filled, canceled, or expired
+          divergences.push({
+            localOrderId: localOrder.id,
+            localStatus: localOrder.status,
+            binanceStatus: 'NOT_FOUND (likely FILLED or CANCELED)',
+            action: 'Local order not found in Binance open orders — status may need update',
+            clientOrderId: localOrder.clientOrderId ?? undefined,
+            symbol: localOrder.symbol,
+          });
+
+          // Log as audit event
+          await createAuditEvent({
+            actorType: 'system',
+            eventType: 'reconciliation_divergence',
+            entityType: 'order',
+            entityId: localOrder.id,
+            payload: {
+              localStatus: localOrder.status,
+              binanceStatus: 'NOT_FOUND',
+              symbol: localOrder.symbol,
+              clientOrderId: localOrder.clientOrderId,
+            },
+          });
+        } else if (binanceMatch.status !== localOrder.status) {
+          // Status mismatch
+          divergences.push({
+            localOrderId: localOrder.id,
+            localStatus: localOrder.status,
+            binanceStatus: binanceMatch.status,
+            action: 'Status mismatch detected',
+            clientOrderId: localOrder.clientOrderId ?? undefined,
+            symbol: localOrder.symbol,
+          });
+
+          await createAuditEvent({
+            actorType: 'system',
+            eventType: 'reconciliation_status_mismatch',
+            entityType: 'order',
+            entityId: localOrder.id,
+            payload: {
+              localStatus: localOrder.status,
+              binanceStatus: binanceMatch.status,
+              symbol: localOrder.symbol,
+              clientOrderId: localOrder.clientOrderId,
+            },
+          });
+        }
+      }
+
+      // Check for Binance orders not tracked locally
+      for (const binanceOrder of binanceOpenOrdersRaw) {
+        const localMatch = localOrders.find(
+          (lo: { clientOrderId: string | null; exchangeOrderId: string | null }) =>
+            lo.clientOrderId === binanceOrder.clientOrderId
+            || lo.exchangeOrderId === binanceOrder.orderId.toString(),
+        );
+
+        if (!localMatch) {
+          divergences.push({
+            localOrderId: 'NONE',
+            localStatus: 'NOT_TRACKED',
+            binanceStatus: binanceOrder.status,
+            action: 'Binance order not tracked in local DB',
+            clientOrderId: binanceOrder.clientOrderId,
+            symbol: binanceOrder.symbol,
+          });
+
+          await createAuditEvent({
+            actorType: 'system',
+            eventType: 'reconciliation_untracked_order',
+            entityType: 'order',
+            payload: {
+              binanceOrderId: binanceOrder.orderId,
+              clientOrderId: binanceOrder.clientOrderId,
+              symbol: binanceOrder.symbol,
+              side: binanceOrder.side,
+              status: binanceOrder.status,
+            },
+          });
+        }
+      }
+
       await createAuditEvent({
         actorType: 'system',
         eventType: 'reconciliation',
         entityType: 'account',
-        payload: { balances: nonZeroBalances, environment: env },
+        payload: {
+          balances: nonZeroBalances,
+          environment: env,
+          localOrdersCount: localOrders.length,
+          binanceOpenOrdersCount: binanceOpenOrdersRaw.length,
+          divergencesCount: divergences.length,
+        },
       });
 
       return {
@@ -208,11 +339,46 @@ export async function binanceRoutes(app: FastifyInstance) {
           message: 'Reconciliation complete',
           balances: nonZeroBalances,
           environment: env,
+          binanceOpenOrders: binanceOpenOrdersRaw.length,
+          localTrackedOrders: localOrders.length,
+          divergences,
         },
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Reconciliation failed';
       return { success: false, error: { code: 'RECONCILE_FAILED', message } };
+    }
+  });
+
+  // GET /api/binance/open-orders
+  app.get('/api/binance/open-orders', async (request) => {
+    const creds = getCredentials();
+    if (!creds) {
+      return { success: false, error: { code: 'NOT_CONFIGURED', message: 'Binance API credentials not configured' } };
+    }
+
+    const query = request.query as { symbol?: string };
+    const params: Record<string, string> = {};
+    if (query.symbol) params.symbol = query.symbol;
+
+    try {
+      const orders = await signedGet(getBaseUrl(), '/v3/openOrders', params, creds.apiKey, creds.apiSecret) as Array<{
+        symbol: string;
+        orderId: number;
+        clientOrderId: string;
+        side: string;
+        type: string;
+        status: string;
+        price: string;
+        origQty: string;
+        executedQty: string;
+        time: number;
+        updateTime: number;
+      }>;
+      return { success: true, data: orders };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch open orders';
+      return { success: false, error: { code: 'OPEN_ORDERS_FAILED', message } };
     }
   });
 

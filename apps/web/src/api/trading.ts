@@ -1,4 +1,4 @@
-import { apiGet } from './client.ts';
+import { apiGet, apiPost } from './client.ts';
 
 export interface Position {
   id: string;
@@ -42,6 +42,40 @@ export interface Signal {
   createdAt: string;
 }
 
+export interface BinanceStatus {
+  environment: string;
+  configured: boolean;
+  connected: boolean;
+  latency: number | null;
+  endpoints: string[];
+}
+
+export interface BinanceBalance {
+  asset: string;
+  free: string;
+  locked: string;
+}
+
+export interface BinanceOpenOrder {
+  symbol: string;
+  orderId: number;
+  clientOrderId: string;
+  side: string;
+  type: string;
+  status: string;
+  price: string;
+  origQty: string;
+  executedQty: string;
+  time: number;
+  updateTime: number;
+}
+
+export interface ReconcileResult {
+  message: string;
+  balances: BinanceBalance[];
+  environment: string;
+}
+
 export const tradingApi = {
   getPositions: (params?: Record<string, string>) => {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -56,7 +90,15 @@ export const tradingApi = {
     return apiGet<{ success: boolean; data: Signal[] }>(`/signals${query}`);
   },
   getBinanceStatus: () =>
-    apiGet<{ success: boolean; data: { environment: string; configured: boolean; connected: boolean; latency: number; endpoints: string[] } }>('/binance/status'),
+    apiGet<{ success: boolean; data: BinanceStatus }>('/binance/status'),
+  getBinanceAccount: () =>
+    apiGet<{ success: boolean; data: { balances: BinanceBalance[] } }>('/binance/account'),
+  getOpenOrders: (symbol?: string) => {
+    const query = symbol ? `?symbol=${symbol}` : '';
+    return apiGet<{ success: boolean; data: BinanceOpenOrder[] }>(`/binance/open-orders${query}`);
+  },
+  reconcile: () =>
+    apiPost<{ success: boolean; data: ReconcileResult }>('/binance/reconcile'),
   getKlines: (params: { symbol: string; interval: string }) => {
     const query = new URLSearchParams(params).toString();
     return apiGet<{ success: boolean; data: Array<{ openTime: number; open: string; high: string; low: string; close: string; volume: string; closeTime: number }> }>(`/binance/klines?${query}`);
