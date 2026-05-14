@@ -1,4 +1,7 @@
 import { PrismaClient } from '@cryptorsi/shared/generated/prisma';
+import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const prisma = new (PrismaClient as any)() as InstanceType<typeof PrismaClient>;
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
+export const prisma = new PrismaClient({ adapter }) as unknown as InstanceType<typeof PrismaClient>;

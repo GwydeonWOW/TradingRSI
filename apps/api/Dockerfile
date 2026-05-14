@@ -2,7 +2,7 @@ FROM node:22-alpine AS base
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
-# Install dependencies
+# Install all dependencies
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml prisma.config.ts ./
 COPY apps/api/package.json ./apps/api/
@@ -24,20 +24,31 @@ RUN npx prisma generate
 RUN pnpm --filter @cryptorsi/shared build
 RUN pnpm --filter api build
 
-# Production
+# Production — install only prod deps, preserving pnpm structure
+FROM base AS prod-install
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml prisma.config.ts ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/indicators/package.json ./packages/indicators/
+COPY packages/binance-client/package.json ./packages/binance-client/
+COPY prisma/ ./prisma/
+RUN pnpm install --frozen-lockfile --prod
+RUN npx prisma generate
+
+# Final production image
 FROM base AS prod
 RUN apk add --no-cache curl
 COPY --from=build /app/apps/api/dist ./dist
 COPY --from=build /app/apps/api/package.json ./apps/api/
 COPY --from=build /app/apps/api/entrypoint.sh ./entrypoint.sh
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/packages/shared ./packages/shared
-COPY --from=build /app/packages/indicators ./packages/indicators
-COPY --from=build /app/packages/binance-client ./packages/binance-client
+COPY --from=prod-install /app/node_modules ./node_modules
+COPY --from=prod-install /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=prod-install /app/packages/shared/src/generated ./packages/shared/src/generated
+COPY --from=prod-install /app/packages/shared/package.json ./packages/shared/
+COPY --from=prod-install /app/packages/indicators/package.json ./packages/indicators/
+COPY --from=prod-install /app/packages/binance-client/package.json ./packages/binance-client/
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts ./
-COPY --from=build /app/packages/shared/src/generated ./packages/shared/src/generated
-COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
 
 RUN chmod +x ./entrypoint.sh
 
