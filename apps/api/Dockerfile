@@ -15,6 +15,7 @@ COPY . .
 ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 RUN npx prisma generate
 RUN pnpm --filter @cryptorsi/shared build
+RUN pnpm --filter @cryptorsi/indicators build
 RUN pnpm --filter api build
 
 RUN chmod +x ./apps/api/entrypoint.sh
