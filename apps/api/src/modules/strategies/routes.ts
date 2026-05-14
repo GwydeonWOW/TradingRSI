@@ -136,18 +136,36 @@ export async function strategyRoutes(app: FastifyInstance) {
         });
       }
 
-      // Get basic metrics
-      const [signalCount, orderCount, activePositions] = await Promise.all([
+      // Get basic metrics + position stats
+      const [signalCount, orderCount, activePositions, closedPositions] = await Promise.all([
         prisma.signal.count({ where: { strategyId: id } }),
         prisma.exchangeOrder.count({ where: { strategyId: id } }),
         prisma.position.count({ where: { strategyId: id, status: 'open' } }),
+        prisma.position.findMany({
+          where: { strategyId: id, status: 'closed', realizedPnl: { not: null } },
+          select: { realizedPnl: true, realizedPnlPct: true },
+        }),
       ]);
+
+      const totalTrades = closedPositions.length;
+      const totalRealizedPnl = closedPositions.reduce(
+        (sum: number, p: { realizedPnl: { toNumber: () => number } | null }) => sum + (p.realizedPnl?.toNumber() ?? 0), 0,
+      );
+      const winningTrades = closedPositions.filter((p: { realizedPnl: { toNumber: () => number } | null }) => (p.realizedPnl?.toNumber() ?? 0) > 0).length;
+      const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
 
       return reply.code(200).send({
         success: true,
         data: {
           ...strategy,
-          metrics: { signalCount, orderCount, activePositions },
+          metrics: {
+            signalCount,
+            orderCount,
+            activePositions,
+            totalTrades,
+            totalRealizedPnl,
+            winRate,
+          },
         },
       });
     } catch (err) {
@@ -370,6 +388,40 @@ export async function strategyRoutes(app: FastifyInstance) {
       return reply.code(500).send({
         success: false,
         error: { code: 'INTERNAL_ERROR', message: 'Failed to pause strategy' },
+      });
+    }
+  });
+
+  // GET /api/strategies/:id/versions/:versionId - Get specific version config
+  app.get('/api/strategies/:id/versions/:versionId', async (request, reply) => {
+    try {
+      const { id, versionId } = request.params as { id: string; versionId: string };
+
+      const strategy = await prisma.strategy.findUnique({ where: { id } });
+      if (!strategy) {
+        return reply.code(404).send({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Strategy not found' },
+        });
+      }
+
+      const version = await prisma.strategyVersion.findUnique({
+        where: { id: versionId },
+      });
+
+      if (!version || version.strategyId !== id) {
+        return reply.code(404).send({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Version not found' },
+        });
+      }
+
+      return reply.code(200).send({ success: true, data: version });
+    } catch (err) {
+      logger.error(err, 'Failed to get strategy version');
+      return reply.code(500).send({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to get strategy version' },
       });
     }
   });

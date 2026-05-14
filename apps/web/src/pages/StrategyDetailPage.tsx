@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { strategiesApi } from '../api/strategies.ts';
 import type { StrategyDetail } from '../api/strategies.ts';
+import type { StrategyConfig } from '@cryptorsi/shared';
 import { StatusBadge } from '../components/StatusBadge.tsx';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { MetricCard } from '../components/MetricCard.tsx';
@@ -12,6 +13,15 @@ export function StrategyDetailPage() {
   const [strategy, setStrategy] = useState<StrategyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [versionConfigs, setVersionConfigs] = useState<Record<string, StrategyConfig>>({});
+  const [expandedVersion, setExpandedVersion] = useState<string | null>(null);
+
+  // Fetch config for latest version when strategy loads
+  useEffect(() => {
+    if (!strategy) return;
+    const latest = strategy.versions[strategy.versions.length - 1];
+    if (latest) fetchVersionConfig(latest.id);
+  }, [strategy?.versions.length]);
 
   useEffect(() => {
     if (!id) return;
@@ -28,6 +38,16 @@ export function StrategyDetailPage() {
       setError(err instanceof Error ? err.message : 'Error al cargar estrategia');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchVersionConfig(versionId: string) {
+    if (!id || versionConfigs[versionId]) return;
+    try {
+      const res = await strategiesApi.getVersion(id, versionId);
+      setVersionConfigs((prev) => ({ ...prev, [versionId]: res.data.config }));
+    } catch {
+      // Silently fail - version detail will show unavailable
     }
   }
 
@@ -86,6 +106,9 @@ export function StrategyDetailPage() {
     );
   }
 
+  const latestVersion = strategy.versions[strategy.versions.length - 1];
+  const latestVersionId = latestVersion?.id;
+
   return (
     <div>
       <button
@@ -115,6 +138,13 @@ export function StrategyDetailPage() {
           )}
         </div>
         <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => navigate(`/backtests?strategyId=${strategy.id}`)}
+            className="rounded-md bg-bg-tertiary px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-bg-hover"
+          >
+            Ejecutar Backtest
+          </button>
           <button
             type="button"
             onClick={() => navigate(`/strategies/${strategy.id}/editor`)}
@@ -161,9 +191,16 @@ export function StrategyDetailPage() {
 
       {/* Metrics */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Operaciones" value="-" subtitle="Placeholder" />
-        <MetricCard title="PnL" value="-" subtitle="Placeholder" />
-        <MetricCard title="Win Rate" value="-" subtitle="Placeholder" />
+        <MetricCard title="Operaciones" value={strategy.metrics.totalTrades} />
+        <MetricCard
+          title="PnL"
+          value={`${strategy.metrics.totalRealizedPnl >= 0 ? '+' : ''}${strategy.metrics.totalRealizedPnl.toFixed(2)} USDT`}
+          variant={strategy.metrics.totalRealizedPnl >= 0 ? 'success' : 'danger'}
+        />
+        <MetricCard
+          title="Win Rate"
+          value={`${(strategy.metrics.winRate * 100).toFixed(1)}%`}
+        />
         <MetricCard title="Version activa" value={strategy.currentVersion != null ? `v${strategy.currentVersion}` : '-'} />
       </div>
 
@@ -198,8 +235,9 @@ export function StrategyDetailPage() {
         <div className="rounded-lg border border-border bg-bg-secondary p-4">
           <h2 className="mb-3 text-sm font-medium text-text-secondary">Configuracion (JSON)</h2>
           <pre className="overflow-auto rounded bg-bg-primary p-3 text-xs text-text-muted">
-            {/* Show config if we had it, placeholder for now */}
-            {JSON.stringify({ symbols: strategy.symbols, mode: strategy.mode, environment: strategy.environment }, null, 2)}
+            {latestVersionId && versionConfigs[latestVersionId]
+              ? JSON.stringify(versionConfigs[latestVersionId], null, 2)
+              : JSON.stringify({ symbols: strategy.symbols, mode: strategy.mode, environment: strategy.environment }, null, 2)}
           </pre>
         </div>
       </div>
@@ -232,14 +270,40 @@ export function StrategyDetailPage() {
                     })}
                   </td>
                   <td className="py-2">
-                    <button type="button" className="text-xs text-accent hover:text-accent-hover">
-                      Ver detalle
-                    </button>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          fetchVersionConfig(v.id);
+                          setExpandedVersion(expandedVersion === v.id ? null : v.id);
+                        }}
+                        className="text-xs text-accent hover:text-accent-hover"
+                      >
+                        {expandedVersion === v.id ? 'Ocultar' : 'Ver Config'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/strategies/${strategy.id}/versions/compare?a=${v.version}`)}
+                        className="text-xs text-text-secondary hover:text-text-primary"
+                      >
+                        Comparar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        )}
+
+        {/* Expanded version config */}
+        {expandedVersion && versionConfigs[expandedVersion] && (
+          <div className="mt-3 border-t border-border pt-3">
+            <h3 className="mb-2 text-xs font-medium text-text-secondary">Config v{strategy.versions.find(v => v.id === expandedVersion)?.version}</h3>
+            <pre className="overflow-auto rounded bg-bg-primary p-3 text-xs text-text-muted">
+              {JSON.stringify(versionConfigs[expandedVersion], null, 2)}
+            </pre>
+          </div>
         )}
       </div>
 

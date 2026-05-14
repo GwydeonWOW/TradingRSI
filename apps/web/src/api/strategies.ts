@@ -13,12 +13,19 @@ export interface StrategyListItem {
   updatedAt: string;
 }
 
+export interface StrategyMetrics {
+  totalTrades: number;
+  totalRealizedPnl: number;
+  winRate: number;
+}
+
 export interface StrategyDetail extends StrategyListItem {
   versions: Array<{
     id: string;
     version: number;
     createdAt: string;
   }>;
+  metrics: StrategyMetrics;
   createdAt: string;
 }
 
@@ -26,6 +33,60 @@ export interface PaginatedStrategies {
   success: true;
   data: StrategyListItem[];
   pagination: { page: number; pageSize: number; total: number };
+}
+
+export interface BacktestRequest {
+  strategyId: string;
+  strategyVersionId?: string;
+  symbol: string;
+  interval: string;
+  startDate: string;
+  endDate: string;
+  initialCapital?: number;
+  commissionRate?: number;
+}
+
+export interface BacktestMetrics {
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  winRate: number;
+  totalPnl: number;
+  totalPnlPct: number;
+  maxDrawdown: number;
+  profitFactor: number;
+  avgTradeDuration: number;
+  bestTrade: number;
+  worstTrade: number;
+  sharpeRatio: number;
+  finalCapital: number;
+}
+
+export interface BacktestTrade {
+  entryTime: number;
+  exitTime: number;
+  side: string;
+  entryPrice: number;
+  exitPrice: number;
+  quantity: number;
+  investedQuote: number;
+  pnl: number;
+  pnlPct: number;
+  exitReason: string;
+}
+
+export interface BacktestResult {
+  params: BacktestRequest;
+  metrics: BacktestMetrics;
+  trades: BacktestTrade[];
+  equityCurve: Array<{ time: number; equity: number }>;
+}
+
+export interface StrategyVersion {
+  id: string;
+  version: number;
+  config: StrategyConfig;
+  createdAt: string;
 }
 
 export const strategiesApi = {
@@ -36,6 +97,8 @@ export const strategiesApi = {
     return apiGet<PaginatedStrategies>(`/strategies?${query.toString()}`);
   },
   get: (id: string) => apiGet<{ success: true; data: StrategyDetail }>(`/strategies/${id}`),
+  getVersion: (strategyId: string, versionId: string) =>
+    apiGet<{ success: true; data: StrategyVersion }>(`/strategies/${strategyId}/versions/${versionId}`),
   create: (data: { name: string; description?: string; mode: string; environment: string; config: StrategyConfig }) =>
     apiPost<{ success: true; data: StrategyDetail }>('/strategies', data),
   update: (id: string, data: { name?: string; description?: string; status?: string }) =>
@@ -43,4 +106,26 @@ export const strategiesApi = {
   activate: (id: string) => apiPost<{ success: true; data: StrategyDetail }>(`/strategies/${id}/activate`),
   pause: (id: string) => apiPost<{ success: true; data: StrategyDetail }>(`/strategies/${id}/pause`),
   duplicate: (id: string) => apiPost<{ success: true; data: StrategyDetail }>(`/strategies/${id}/duplicate`),
+};
+
+export const backtestsApi = {
+  run: (data: BacktestRequest) => apiPost<{ success: true; data: BacktestResult }>('/backtests', data),
+  list: (params?: { strategyId?: string; symbol?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.strategyId) query.set('strategyId', params.strategyId);
+    if (params?.symbol) query.set('symbol', params.symbol);
+    return apiGet<{ success: true; data: BacktestResult[] }>(`/backtests?${query.toString()}`);
+  },
+  compare: (params: { strategyId: string; versionA: number; versionB: number; symbol: string; interval: string; startDate: string; endDate: string }) => {
+    const query = new URLSearchParams({
+      strategyId: params.strategyId,
+      versionA: String(params.versionA),
+      versionB: String(params.versionB),
+      symbol: params.symbol,
+      interval: params.interval,
+      startDate: params.startDate,
+      endDate: params.endDate,
+    });
+    return apiGet<{ success: true; data: { a: BacktestResult; b: BacktestResult } }>(`/backtests/compare?${query.toString()}`);
+  },
 };

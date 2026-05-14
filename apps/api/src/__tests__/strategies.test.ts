@@ -19,7 +19,7 @@ vi.mock('../infrastructure/db/prisma.js', () => {
     },
     signal: { count: vi.fn() },
     exchangeOrder: { count: vi.fn() },
-    position: { count: vi.fn() },
+    position: { count: vi.fn(), findMany: vi.fn() },
     auditEvent: { create: vi.fn() },
   };
   return { prisma: mockPrisma };
@@ -47,7 +47,7 @@ const mockedPrisma = prisma as unknown as {
   };
   signal: { count: ReturnType<typeof vi.fn> };
   exchangeOrder: { count: ReturnType<typeof vi.fn> };
-  position: { count: ReturnType<typeof vi.fn> };
+  position: { count: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
   auditEvent: { create: ReturnType<typeof vi.fn> };
 };
 
@@ -220,6 +220,7 @@ describe('Strategy CRUD', () => {
       mockedPrisma.signal.count.mockResolvedValue(10);
       mockedPrisma.exchangeOrder.count.mockResolvedValue(5);
       mockedPrisma.position.count.mockResolvedValue(2);
+      mockedPrisma.position.findMany.mockResolvedValue([]);
 
       const app = await buildApp();
       const res = await app.inject({ method: 'GET', url: '/api/strategies/s1' });

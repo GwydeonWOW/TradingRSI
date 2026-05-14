@@ -13,6 +13,7 @@ import { MarketPage } from './pages/MarketPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { AuditPage } from './pages/AuditPage.tsx';
 import { BacktestsPage } from './pages/BacktestsPage.tsx';
+import { VersionComparePage } from './pages/VersionComparePage.tsx';
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/strategies/new" element={<NewStrategyPage />} />
         <Route path="/strategies/:id" element={<StrategyDetailPage />} />
         <Route path="/strategies/:id/editor" element={<StrategyEditorPage />} />
+        <Route path="/strategies/:id/versions/compare" element={<VersionComparePage />} />
         <Route path="/orders" element={<OrdersPage />} />
         <Route path="/positions" element={<PositionsPage />} />
         <Route path="/signals" element={<SignalsPage />} />
