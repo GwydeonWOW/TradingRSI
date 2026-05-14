@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { tradingApi, type BinanceStatus, type BinanceBalance, type ReconcileResult } from '../api/trading.ts';
 
 export function SettingsPage() {
@@ -176,6 +177,35 @@ export function SettingsPage() {
           <p className="mt-1 text-xs text-text-muted">
             Configurado via variable de entorno BINANCE_ENV. Valores: demo (por defecto), testnet, production.
           </p>
+        </div>
+
+        <div className="rounded-lg border border-border bg-bg-secondary p-4">
+          <h2 className="mb-2 text-sm font-medium text-text-primary">Preparacion para Live</h2>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-text-muted">ALLOW_LIVE_TRADING</span>
+              <span className="text-warning">
+                Bloqueado por defecto
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-text-muted">Entorno actual</span>
+              <span className={`font-medium ${binanceStatus?.environment === 'production' ? 'text-danger' : 'text-success'}`}>
+                {binanceStatus?.environment ?? 'demo'}
+              </span>
+            </div>
+            <div className="mt-2">
+              <Link
+                to="/settings/live-readiness"
+                className="inline-block rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+              >
+                Verificar preparacion para Live
+              </Link>
+            </div>
+            <p className="text-xs text-text-muted">
+              Verifica todas las condiciones necesarias antes de habilitar trading con dinero real.
+            </p>
+          </div>
         </div>
 
         <div className="rounded-lg border border-border bg-bg-secondary p-4">

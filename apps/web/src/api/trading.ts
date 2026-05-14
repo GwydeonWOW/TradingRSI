@@ -83,6 +83,37 @@ export interface ReconcileResult {
   environment: string;
 }
 
+export interface LiveReadinessResult {
+  allowed: boolean;
+  missing: string[];
+  checks: {
+    allowLiveTradingEnvSet: boolean;
+    strategyApprovedForLive: boolean;
+    riskLimitsConfigured: boolean;
+    reconciliationActive: boolean;
+    testOrdersPassed: boolean;
+    auditLogHealthy: boolean;
+    binanceConnected: boolean;
+    credentialsValid: boolean;
+  };
+}
+
+export interface PromoteResult {
+  promoted: boolean;
+  strategyId: string;
+  metrics: {
+    demoPositions: number;
+    winRate: number;
+    maxDrawdown: number;
+    totalTrades: number;
+  };
+  liveReadiness: {
+    allowed: boolean;
+    missing: string[];
+  };
+  message: string;
+}
+
 export const tradingApi = {
   getPositions: (params?: Record<string, string>) => {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -116,4 +147,8 @@ export const tradingApi = {
     apiPost<{ success: boolean; data: unknown }>('/binance/streams/start'),
   stopStreams: () =>
     apiPost<{ success: boolean; data: unknown }>('/binance/streams/stop'),
+  getLiveReadiness: () =>
+    apiGet<{ success: boolean; data: LiveReadinessResult }>('/binance/live-readiness'),
+  promoteStrategy: (strategyId: string) =>
+    apiPost<{ success: boolean; data: PromoteResult; error?: { code: string; message: string } }>(`/strategies/${strategyId}/promote`),
 };

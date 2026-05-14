@@ -9,6 +9,7 @@ import {
   adjustQuantity,
   getSymbolInfo,
 } from '../../domain/execution/binance.js';
+import { assertLiveGuard, isLiveEnvironment } from '../../domain/guards/index.js';
 import { createAuditEvent } from '../audit/helpers.js';
 import { getBotState, setBotState } from './state.js';
 import type { StrategyConfig } from '@cryptorsi/shared';
@@ -59,6 +60,22 @@ export async function runEvaluationCycle(): Promise<void> {
 
     const config = strategy.versions[0]!.config as StrategyConfig;
     const versionId = strategy.versions[0]!.id;
+
+    // Hard guard: block live trading unless explicitly enabled
+    if (isLiveEnvironment(strategy.environment)) {
+      try {
+        assertLiveGuard(strategy.environment);
+      } catch {
+        setBotState({ status: 'error', errorMessage: 'Live trading is blocked. Set ALLOW_LIVE_TRADING=true to enable.' });
+        addEvent('guard_blocked', { reason: 'assertLiveGuard failed' });
+        return;
+      }
+      if (process.env.ALLOW_LIVE_TRADING !== 'true') {
+        setBotState({ status: 'error', errorMessage: 'Live trading is blocked. Set ALLOW_LIVE_TRADING=true to enable.' });
+        addEvent('guard_blocked', { reason: 'ALLOW_LIVE_TRADING not set' });
+        return;
+      }
+    }
 
     // Evaluate each symbol
     for (const symbol of config.symbols) {
@@ -241,6 +258,19 @@ export async function runEvaluationCycle(): Promise<void> {
             }
 
             const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
+
+            // Hard guard before placing any real order in a live environment
+            if (isLiveEnvironment(env)) {
+              try {
+                assertLiveGuard(env);
+              } catch {
+                throw new Error('Live trading blocked by hard guard');
+              }
+              if (process.env.ALLOW_LIVE_TRADING !== 'true') {
+                throw new Error('Live trading blocked by hard guard');
+              }
+            }
+
             const envConfig = BINANCE_ENVIRONMENTS[env];
             const clientOrderId = `cryptorsi_${strategy.id.slice(0, 8)}_${Date.now()}`;
 

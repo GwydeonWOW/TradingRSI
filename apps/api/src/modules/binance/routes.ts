@@ -5,6 +5,7 @@ import { BINANCE_ENVIRONMENTS } from '@cryptorsi/shared';
 import { logger } from '../../infrastructure/logger/index.js';
 import { prisma } from '../../infrastructure/db/prisma.js';
 import { fetchOpenOrders } from '../../domain/execution/binance.js';
+import { checkLiveReadiness, type LiveTradingChecklist } from '../../domain/guards/index.js';
 
 // ---------------------------------------------------------------------------
 // Minimal inline signed-request helpers (avoids needing @cryptorsi/binance-client
@@ -524,6 +525,93 @@ export async function binanceRoutes(app: FastifyInstance) {
       const message = err instanceof Error ? err.message : 'Failed to keep-alive listen key';
       logger.error({ err }, 'Failed to keep-alive listen key');
       return { success: false, error: { code: 'LISTEN_KEY_KEEPALIVE_FAILED', message } };
+    }
+  });
+
+  // GET /api/binance/live-readiness
+  app.get('/api/binance/live-readiness', async () => {
+    try {
+      // 1. Check env var
+      const allowLiveTradingEnvSet = process.env.ALLOW_LIVE_TRADING === 'true';
+
+      // 2. Check if any strategy has been promoted/approved for live
+      const liveApprovedStrategies = await prisma.strategy.findMany({
+        where: { mode: 'binance_live' },
+      });
+      const strategyApprovedForLive = liveApprovedStrategies.length > 0;
+
+      // 3. Check live risk limits configured (always true since we have DEFAULT_LIVE_LIMITS)
+      const riskLimitsConfigured = true;
+
+      // 4. Check reconciliation has run recently (last 24 hours)
+      const recentReconciliation = await prisma.auditEvent.findFirst({
+        where: {
+          eventType: 'reconciliation',
+          createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        },
+      });
+      const reconciliationActive = !!recentReconciliation;
+
+      // 5. Check if test orders have passed (from audit events)
+      const testOrderEvent = await prisma.auditEvent.findFirst({
+        where: { eventType: 'order_test' },
+      });
+      const testOrdersPassed = !!testOrderEvent;
+
+      // 6. Check audit log is healthy (has events in last hour)
+      const recentAudit = await prisma.auditEvent.findFirst({
+        where: {
+          createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) },
+        },
+      });
+      const auditLogHealthy = !!recentAudit;
+
+      // 7. Check Binance connectivity
+      let binanceConnected = false;
+      try {
+        const pingRes = await fetch(`${getBaseUrl()}/v3/ping`);
+        binanceConnected = pingRes.ok;
+      } catch {
+        binanceConnected = false;
+      }
+
+      // 8. Check credentials valid (can reach account endpoint)
+      let credentialsValid = false;
+      const creds = getCredentials();
+      if (creds) {
+        try {
+          await signedGet(getBaseUrl(), '/v3/account', {}, creds.apiKey, creds.apiSecret);
+          credentialsValid = true;
+        } catch {
+          credentialsValid = false;
+        }
+      }
+
+      const checklist: LiveTradingChecklist = {
+        allowLiveTradingEnvSet,
+        strategyApprovedForLive,
+        riskLimitsConfigured,
+        reconciliationActive,
+        testOrdersPassed,
+        auditLogHealthy,
+        binanceConnected,
+        credentialsValid,
+      };
+
+      const result = checkLiveReadiness(checklist);
+
+      return {
+        success: true,
+        data: {
+          allowed: result.allowed,
+          missing: result.missing,
+          checks: result.checks,
+        },
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Live readiness check failed';
+      logger.error({ err }, 'Live readiness check failed');
+      return { success: false, error: { code: 'LIVE_READINESS_FAILED', message } };
     }
   });
 }

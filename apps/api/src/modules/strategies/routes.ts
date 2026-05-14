@@ -3,6 +3,7 @@ import { prisma } from '../../infrastructure/db/prisma.js';
 import { CreateStrategySchema, StrategyConfigSchema } from '@cryptorsi/shared';
 import { logger } from '../../infrastructure/logger/index.js';
 import { createAuditEvent } from '../audit/helpers.js';
+import { canPromoteToLive, checkLiveReadiness, type LiveTradingChecklist } from '../../domain/guards/index.js';
 
 export async function strategyRoutes(app: FastifyInstance) {
   // GET /api/strategies - List strategies (paginated)
@@ -451,6 +452,138 @@ export async function strategyRoutes(app: FastifyInstance) {
       return reply.code(500).send({
         success: false,
         error: { code: 'INTERNAL_ERROR', message: 'Failed to list strategy versions' },
+      });
+    }
+  });
+
+  // POST /api/strategies/:id/promote - Promote strategy to live-capable
+  app.post('/api/strategies/:id/promote', async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+
+      const strategy = await prisma.strategy.findUnique({ where: { id } });
+      if (!strategy) {
+        return reply.code(404).send({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Strategy not found' },
+        });
+      }
+
+      // Check demo history: at least some positions in binance_demo mode
+      const demoPositions = await prisma.position.findMany({
+        where: { strategyId: id, source: 'binance_demo' },
+      });
+      const hasDemoHistory = demoPositions.length > 0;
+
+      // Calculate win rate from demo positions
+      const closedDemoPositions = await prisma.position.findMany({
+        where: {
+          strategyId: id,
+          source: { in: ['binance_demo', 'simulation'] },
+          status: 'closed',
+          realizedPnl: { not: null },
+        },
+        select: { realizedPnl: true, realizedPnlPct: true },
+      });
+      const totalTrades = closedDemoPositions.length;
+      const winningTrades = closedDemoPositions.filter(
+        (p: { realizedPnl: { toNumber: () => number } | null }) => (p.realizedPnl?.toNumber() ?? 0) > 0,
+      ).length;
+      const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
+
+      // Get max drawdown from closed positions (simplified)
+      let maxDrawdown = 0;
+      if (closedDemoPositions.length > 0) {
+        const pnls = closedDemoPositions.map(
+          (p: { realizedPnlPct: { toNumber: () => number } | null }) => p.realizedPnlPct?.toNumber() ?? 0,
+        );
+        const minPnl = Math.min(...pnls);
+        maxDrawdown = Math.abs(minPnl);
+      }
+
+      // Check if strategy can be promoted
+      const promoteResult = canPromoteToLive({
+        status: strategy.status,
+        mode: strategy.mode,
+        environment: strategy.environment,
+        hasDemoHistory,
+        backtestResults: totalTrades > 0 ? { winRate, maxDrawdown } : null,
+      });
+
+      if (!promoteResult.allowed) {
+        await createAuditEvent({
+          actorType: 'system',
+          eventType: 'strategy.promotion_blocked',
+          entityType: 'strategy',
+          entityId: id,
+          payload: { reason: promoteResult.reason, demoPositions: demoPositions.length, winRate, maxDrawdown },
+        });
+
+        return reply.code(400).send({
+          success: false,
+          error: { code: 'PROMOTION_BLOCKED', message: promoteResult.reason! },
+          data: { demoPositions: demoPositions.length, winRate, maxDrawdown, totalTrades },
+        });
+      }
+
+      // Check live readiness (environment-level)
+      const allowLiveTradingEnvSet = process.env.ALLOW_LIVE_TRADING === 'true';
+      let binanceConnected = false;
+      try {
+        const { BINANCE_ENVIRONMENTS: ENV_CONFIG } = await import('@cryptorsi/shared');
+        const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
+        const pingRes = await fetch(`${ENV_CONFIG[env].restBaseUrl}/v3/ping`);
+        binanceConnected = pingRes.ok;
+      } catch {
+        binanceConnected = false;
+      }
+
+      const liveReadiness = checkLiveReadiness({
+        allowLiveTradingEnvSet,
+        strategyApprovedForLive: true, // This strategy is being approved now
+        riskLimitsConfigured: true,
+        reconciliationActive: false,
+        testOrdersPassed: false,
+        auditLogHealthy: true,
+        binanceConnected,
+        credentialsValid: false,
+      });
+
+      // Promotion succeeded: mark strategy as live-capable but don't enable it
+      // We don't change mode to binance_live automatically; just record the approval
+      await createAuditEvent({
+        actorType: 'system',
+        eventType: 'strategy.promoted_to_live',
+        entityType: 'strategy',
+        entityId: id,
+        payload: {
+          previousMode: strategy.mode,
+          demoPositions: demoPositions.length,
+          winRate,
+          maxDrawdown,
+          totalTrades,
+          liveReadiness: { allowed: liveReadiness.allowed, missing: liveReadiness.missing },
+        },
+      });
+
+      return reply.code(200).send({
+        success: true,
+        data: {
+          promoted: true,
+          strategyId: id,
+          metrics: { demoPositions: demoPositions.length, winRate, maxDrawdown, totalTrades },
+          liveReadiness: {
+            allowed: liveReadiness.allowed,
+            missing: liveReadiness.missing,
+          },
+          message: 'Strategy approved for live promotion. Live trading remains disabled until all readiness checks pass.',
+        },
+      });
+    } catch (err) {
+      logger.error(err, 'Failed to promote strategy');
+      return reply.code(500).send({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to promote strategy' },
       });
     }
   });
