@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@cryptorsi/shared": "workspace:*",
+    "@cryptorsi/indicators": "workspace:*",
     "fastify": "^5.2.0",
     "@fastify/cors": "^11.0.0",
     "@fastify/env": "^5.0.0",
