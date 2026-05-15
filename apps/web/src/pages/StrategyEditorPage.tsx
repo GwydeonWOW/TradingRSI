@@ -69,10 +69,14 @@ export function StrategyEditorPage() {
     try {
       const result = await strategiesApi.get(id!);
       const s: StrategyDetail = result.data;
-      setConfig((prev) => ({
-        ...prev,
-        symbols: s.symbols,
-      }));
+      // Load latest version config
+      if (s.versions.length > 0) {
+        const latestVersion = s.versions[s.versions.length - 1]!;
+        const versionRes = await strategiesApi.getVersion(id!, latestVersion.id);
+        setConfig(versionRes.data.config);
+      } else {
+        setConfig((prev) => ({ ...prev, symbols: s.symbols }));
+      }
     } catch {
       // Use defaults if strategy fetch fails
     } finally {
@@ -88,9 +92,7 @@ export function StrategyEditorPage() {
     setSaving(true);
     setError(null);
     try {
-      await strategiesApi.update(id!, {
-        name: undefined,
-      });
+      await strategiesApi.update(id!, { config });
       navigate(`/strategies/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar');

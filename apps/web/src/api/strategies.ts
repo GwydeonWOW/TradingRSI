@@ -101,7 +101,7 @@ export const strategiesApi = {
     apiGet<{ success: true; data: StrategyVersion }>(`/strategies/${strategyId}/versions/${versionId}`),
   create: (data: { name: string; description?: string; mode: string; environment: string; config: StrategyConfig }) =>
     apiPost<{ success: true; data: StrategyDetail }>('/strategies', data),
-  update: (id: string, data: { name?: string; description?: string; status?: string }) =>
+  update: (id: string, data: { name?: string; description?: string; status?: string; config?: StrategyConfig }) =>
     apiPut<{ success: true; data: StrategyDetail }>(`/strategies/${id}`, data),
   activate: (id: string) => apiPost<{ success: true; data: StrategyDetail }>(`/strategies/${id}/activate`),
   pause: (id: string) => apiPost<{ success: true; data: StrategyDetail }>(`/strategies/${id}/pause`),
