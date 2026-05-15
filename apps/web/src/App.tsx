@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.tsx';
 import { AppShell } from './components/AppShell.tsx';
+import { AuthGuard } from './components/AuthGuard.tsx';
 import { DashboardPage } from './pages/DashboardPage.tsx';
 import { BotPage } from './pages/BotPage.tsx';
 import { StrategiesPage } from './pages/StrategiesPage.tsx';
@@ -21,33 +22,40 @@ import { LoginPage } from './pages/LoginPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
 import { TwoFactorPage } from './pages/TwoFactorPage.tsx';
 import { UsersPage } from './pages/UsersPage.tsx';
+import { SetupWizardPage } from './pages/SetupWizardPage.tsx';
 
 export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route element={<AppShell />}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/bot" element={<BotPage />} />
-          <Route path="/strategies" element={<StrategiesPage />} />
-          <Route path="/strategies/new" element={<NewStrategyPage />} />
-          <Route path="/strategies/:id" element={<StrategyDetailPage />} />
-          <Route path="/strategies/:id/editor" element={<StrategyEditorPage />} />
-          <Route path="/strategies/:id/versions/compare" element={<VersionComparePage />} />
-          <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/positions" element={<PositionsPage />} />
-          <Route path="/signals" element={<SignalsPage />} />
-          <Route path="/market" element={<MarketPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/settings/2fa" element={<TwoFactorPage />} />
-          <Route path="/settings/live-readiness" element={<LiveReadinessPage />} />
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/audit" element={<AuditPage />} />
-          <Route path="/liquidity" element={<LiquidityPage />} />
-          <Route path="/backtests" element={<BacktestsPage />} />
+        {/* Public routes */}
+        <Route path="/setup" element={<SetupWizardPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+
+        {/* Protected routes — require auth */}
+        <Route element={<AuthGuard />}>
+          <Route element={<AppShell />}>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/bot" element={<BotPage />} />
+            <Route path="/strategies" element={<StrategiesPage />} />
+            <Route path="/strategies/new" element={<NewStrategyPage />} />
+            <Route path="/strategies/:id" element={<StrategyDetailPage />} />
+            <Route path="/strategies/:id/editor" element={<StrategyEditorPage />} />
+            <Route path="/strategies/:id/versions/compare" element={<VersionComparePage />} />
+            <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/positions" element={<PositionsPage />} />
+            <Route path="/signals" element={<SignalsPage />} />
+            <Route path="/market" element={<MarketPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings/2fa" element={<TwoFactorPage />} />
+            <Route path="/settings/live-readiness" element={<LiveReadinessPage />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/audit" element={<AuditPage />} />
+            <Route path="/liquidity" element={<LiquidityPage />} />
+            <Route path="/backtests" element={<BacktestsPage />} />
+          </Route>
         </Route>
       </Routes>
     </AuthProvider>
