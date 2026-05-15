@@ -16,8 +16,8 @@ export const EntryConfigSchema = z.object({
 
 export const ExitConfigSchema = z.object({
   rsiAbove: z.number().min(0).max(100),
-  takeProfitPct: z.number().positive(),
-  stopLossPct: z.number().positive(),
+  takeProfitPct: z.number().positive().nullable(),
+  stopLossPct: z.number().positive().nullable(),
   trailingStopPct: z.number().positive().nullable(),
   exitOnBearishDivergence: z.boolean().optional(),
 });

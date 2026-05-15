@@ -384,14 +384,14 @@ function StepExit({ config, onUpdate }: { config: StrategyConfig; onUpdate: <K e
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className={labelClass}>Take Profit (%)</label>
-          <input type="number" step={0.1} min={0} className={inputClass} value={config.exit.takeProfitPct}
-            onChange={(e) => onUpdate('exit', { ...config.exit, takeProfitPct: Number(e.target.value) })} />
+          <label className={labelClass}>Take Profit (%) — dejar vacio para desactivar</label>
+          <input type="number" step={0.1} min={0} className={inputClass} value={config.exit.takeProfitPct ?? ''}
+            onChange={(e) => onUpdate('exit', { ...config.exit, takeProfitPct: e.target.value ? Number(e.target.value) : null })} placeholder="Desactivado" />
         </div>
         <div>
-          <label className={labelClass}>Stop Loss (%)</label>
-          <input type="number" step={0.1} min={0} className={inputClass} value={config.exit.stopLossPct}
-            onChange={(e) => onUpdate('exit', { ...config.exit, stopLossPct: Number(e.target.value) })} />
+          <label className={labelClass}>Stop Loss (%) — dejar vacio para desactivar</label>
+          <input type="number" step={0.1} min={0} className={inputClass} value={config.exit.stopLossPct ?? ''}
+            onChange={(e) => onUpdate('exit', { ...config.exit, stopLossPct: e.target.value ? Number(e.target.value) : null })} placeholder="Desactivado" />
         </div>
       </div>
       <div>
@@ -521,8 +521,8 @@ function StepSummary({ config, name, description }: { config: StrategyConfig; na
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-accent">Reglas de Salida</h3>
         <div className="space-y-1">
           <div className="flex justify-between text-sm"><span className="text-text-muted">RSI Above</span><span className="font-medium text-text-primary">{config.exit.rsiAbove}</span></div>
-          <div className="flex justify-between text-sm"><span className="text-text-muted">Take Profit</span><span className="font-medium text-text-primary">{config.exit.takeProfitPct}%</span></div>
-          <div className="flex justify-between text-sm"><span className="text-text-muted">Stop Loss</span><span className="font-medium text-text-primary">{config.exit.stopLossPct}%</span></div>
+          <div className="flex justify-between text-sm"><span className="text-text-muted">Take Profit</span><span className="font-medium text-text-primary">{config.exit.takeProfitPct != null ? `${config.exit.takeProfitPct}%` : 'Desactivado'}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-text-muted">Stop Loss</span><span className="font-medium text-text-primary">{config.exit.stopLossPct != null ? `${config.exit.stopLossPct}%` : 'Desactivado'}</span></div>
           <div className="flex justify-between text-sm"><span className="text-text-muted">Trailing Stop</span><span className="font-medium text-text-primary">{config.exit.trailingStopPct != null ? `${config.exit.trailingStopPct}%` : 'Desactivado'}</span></div>
           {(config.entry.entryMode ?? 'rsi_threshold') === 'divergence' && (
             <div className="flex justify-between text-sm"><span className="text-text-muted">Salida divergencia bajista</span><span className="font-medium text-text-primary">{((config.exit as unknown as Record<string, unknown>).exitOnBearishDivergence as boolean) ? 'Si' : 'No'}</span></div>

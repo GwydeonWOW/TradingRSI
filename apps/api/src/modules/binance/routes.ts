@@ -7,6 +7,7 @@ import { prisma } from '../../infrastructure/db/prisma.js';
 import { fetchOpenOrders } from '../../domain/execution/binance.js';
 import { checkLiveReadiness, type LiveTradingChecklist } from '../../domain/guards/index.js';
 import { getBinanceCredentials } from '../../infrastructure/credentials/index.js';
+import { getStreamStatus, startStreams, stopStreams } from './streamManager.js';
 
 // ---------------------------------------------------------------------------
 // Minimal inline signed-request helpers (avoids needing @cryptorsi/binance-client
@@ -555,34 +556,62 @@ export async function binanceRoutes(app: FastifyInstance) {
   app.get('/api/binance/streams/status', async () => {
     return {
       success: true,
-      data: {
-        connected: false,
-        streams: [],
-        message: 'WebSocket streams not yet implemented',
-      },
+      data: getStreamStatus(),
     };
   });
 
   // POST /api/binance/streams/start
-  app.post('/api/binance/streams/start', async () => {
-    return {
-      success: true,
-      data: {
-        connected: false,
-        message: 'WebSocket streams not yet implemented. Data is fetched via REST polling.',
-      },
-    };
+  app.post('/api/binance/streams/start', async (request) => {
+    try {
+      const body = request.body as { symbols?: string[]; intervals?: string[] } | undefined;
+      const symbols = body?.symbols ?? ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
+      const intervals = body?.intervals ?? ['1m', '5m', '15m', '1h', '4h'];
+
+      await startStreams(symbols, intervals);
+
+      await createAuditEvent({
+        actorType: 'user',
+        eventType: 'streams_started',
+        entityType: 'stream',
+        payload: { symbols, intervals },
+      });
+
+      return {
+        success: true,
+        data: {
+          ...getStreamStatus(),
+          message: 'Streams started',
+        },
+      };
+    } catch (err) {
+      logger.error({ err }, 'Failed to start streams');
+      return { success: false, error: { code: 'STREAM_START_FAILED', message: 'Failed to start streams' } };
+    }
   });
 
   // POST /api/binance/streams/stop
   app.post('/api/binance/streams/stop', async () => {
-    return {
-      success: true,
-      data: {
-        connected: false,
-        message: 'WebSocket streams not yet implemented.',
-      },
-    };
+    try {
+      await stopStreams();
+
+      await createAuditEvent({
+        actorType: 'user',
+        eventType: 'streams_stopped',
+        entityType: 'stream',
+        payload: {},
+      });
+
+      return {
+        success: true,
+        data: {
+          ...getStreamStatus(),
+          message: 'Streams stopped',
+        },
+      };
+    } catch (err) {
+      logger.error({ err }, 'Failed to stop streams');
+      return { success: false, error: { code: 'STREAM_STOP_FAILED', message: 'Failed to stop streams' } };
+    }
   });
 
   // GET /api/binance/live-readiness

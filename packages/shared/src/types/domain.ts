@@ -35,8 +35,8 @@ export interface EntryConfig {
 
 export interface ExitConfig {
   rsiAbove: number;
-  takeProfitPct: number;
-  stopLossPct: number;
+  takeProfitPct: number | null;
+  stopLossPct: number | null;
   trailingStopPct: number | null;
   exitOnBearishDivergence?: boolean;
 }

@@ -129,9 +129,9 @@ export function MarketPage() {
   }, []);
 
   // Fetch chart data for selected symbol + timeframe
-  const fetchChart = useCallback(async () => {
+  const fetchChart = useCallback(async (showLoader = true) => {
     if (!selectedChart) return;
-    setChartLoading(true);
+    if (showLoader) setChartLoading(true);
     try {
       const klineRes = await tradingApi.getKlines({ symbol: selectedChart, interval: selectedTimeframe });
       setChartData(
@@ -145,9 +145,9 @@ export function MarketPage() {
         })),
       );
     } catch {
-      setChartData([]);
+      if (showLoader) setChartData([]);
     } finally {
-      setChartLoading(false);
+      if (showLoader) setChartLoading(false);
     }
   }, [selectedChart, selectedTimeframe]);
 
@@ -156,12 +156,12 @@ export function MarketPage() {
   }, [fetchPrices]);
 
   useEffect(() => {
-    fetchChart();
+    fetchChart(true);
   }, [fetchChart]);
 
-  // Refresh chart data every 10s to keep current candle up to date
+  // Refresh chart data every 10s to keep current candle up to date (silent refresh)
   useEffect(() => {
-    const interval = setInterval(fetchChart, 10000);
+    const interval = setInterval(() => fetchChart(false), 10000);
     return () => clearInterval(interval);
   }, [fetchChart]);
 

@@ -249,23 +249,27 @@ function checkExit(
   }
 
   // Check stop-loss (price dropped below threshold)
-  const stopLossPrice = position.entryPrice * (1 - exit.stopLossPct / 100);
-  if (candle.low <= stopLossPrice) {
-    return buildTrade(position, candle, stopLossPrice, 'stop_loss', commissionRate);
-  }
+  if (exit.stopLossPct !== null) {
+    const stopLossPrice = position.entryPrice * (1 - exit.stopLossPct / 100);
+    if (candle.low <= stopLossPrice) {
+      return buildTrade(position, candle, stopLossPrice, 'stop_loss', commissionRate);
+    }
 
-  // Check trailing stop
-  if (exit.trailingStopPct !== null) {
-    const trailingStopPrice = position.highestPrice * (1 - exit.trailingStopPct / 100);
-    if (candle.low <= trailingStopPrice && trailingStopPrice > stopLossPrice) {
-      return buildTrade(position, candle, trailingStopPrice, 'trailing_stop', commissionRate);
+    // Check trailing stop
+    if (exit.trailingStopPct !== null) {
+      const trailingStopPrice = position.highestPrice * (1 - exit.trailingStopPct / 100);
+      if (candle.low <= trailingStopPrice && trailingStopPrice > stopLossPrice) {
+        return buildTrade(position, candle, trailingStopPrice, 'trailing_stop', commissionRate);
+      }
     }
   }
 
   // Check take-profit (price rose above threshold)
-  const takeProfitPrice = position.entryPrice * (1 + exit.takeProfitPct / 100);
-  if (candle.high >= takeProfitPrice) {
-    return buildTrade(position, candle, takeProfitPrice, 'take_profit', commissionRate);
+  if (exit.takeProfitPct !== null) {
+    const takeProfitPrice = position.entryPrice * (1 + exit.takeProfitPct / 100);
+    if (candle.high >= takeProfitPrice) {
+      return buildTrade(position, candle, takeProfitPrice, 'take_profit', commissionRate);
+    }
   }
 
   // Check bearish divergence exit

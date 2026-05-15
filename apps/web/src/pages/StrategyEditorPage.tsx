@@ -532,19 +532,21 @@ function StepExit({
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className={labelClass}>Take Profit (%)</label>
+          <label className={labelClass}>Take Profit (%) — dejar vacio para desactivar</label>
           <input
             type="number" step={0.1} min={0} className={inputClass}
-            value={config.exit.takeProfitPct}
-            onChange={(e) => onUpdate('exit', { ...config.exit, takeProfitPct: Number(e.target.value) })}
+            value={config.exit.takeProfitPct ?? ''}
+            onChange={(e) => onUpdate('exit', { ...config.exit, takeProfitPct: e.target.value ? Number(e.target.value) : null })}
+            placeholder="Desactivado"
           />
         </div>
         <div>
-          <label className={labelClass}>Stop Loss (%)</label>
+          <label className={labelClass}>Stop Loss (%) — dejar vacio para desactivar</label>
           <input
             type="number" step={0.1} min={0} className={inputClass}
-            value={config.exit.stopLossPct}
-            onChange={(e) => onUpdate('exit', { ...config.exit, stopLossPct: Number(e.target.value) })}
+            value={config.exit.stopLossPct ?? ''}
+            onChange={(e) => onUpdate('exit', { ...config.exit, stopLossPct: e.target.value ? Number(e.target.value) : null })}
+            placeholder="Desactivado"
           />
         </div>
       </div>
@@ -731,8 +733,8 @@ function StepSummary({
 
         <SummarySection title="Reglas de Salida">
           <SummaryRow label="RSI Above" value={String(config.exit.rsiAbove)} />
-          <SummaryRow label="Take Profit" value={`${config.exit.takeProfitPct}%`} />
-          <SummaryRow label="Stop Loss" value={`${config.exit.stopLossPct}%`} />
+          <SummaryRow label="Take Profit" value={config.exit.takeProfitPct != null ? `${config.exit.takeProfitPct}%` : 'Desactivado'} />
+          <SummaryRow label="Stop Loss" value={config.exit.stopLossPct != null ? `${config.exit.stopLossPct}%` : 'Desactivado'} />
           <SummaryRow label="Trailing Stop" value={config.exit.trailingStopPct != null ? `${config.exit.trailingStopPct}%` : 'Desactivado'} />
           {(config.entry.entryMode ?? 'rsi_threshold') === 'divergence' && (
             <SummaryRow label="Salida divergencia bajista" value={((config.exit as unknown as Record<string, unknown>).exitOnBearishDivergence as boolean) ? 'Si' : 'No'} />
