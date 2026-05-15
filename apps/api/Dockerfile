@@ -8,6 +8,7 @@ COPY apps/api/package.json ./apps/api/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/indicators/package.json ./packages/indicators/
 COPY packages/binance-client/package.json ./packages/binance-client/
+COPY packages/liquidity/package.json ./packages/liquidity/
 COPY prisma/ ./prisma/
 RUN pnpm install --frozen-lockfile --config.node-linker=hoisted
 
@@ -16,6 +17,7 @@ ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 RUN npx prisma generate
 RUN pnpm --filter @cryptorsi/shared build
 RUN pnpm --filter @cryptorsi/indicators build
+RUN pnpm --filter @cryptorsi/liquidity build
 RUN pnpm --filter api build
 
 RUN chmod +x ./apps/api/entrypoint.sh
