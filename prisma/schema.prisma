@@ -267,3 +267,31 @@ model AuditEvent {
   @@index([createdAt])
   @@map("audit_events")
 }
+
+// ============================
+// Liquidity Health KPI
+// ============================
+
+model LiquiditySnapshot {
+  id              String   @id @default(uuid())
+  symbol          String
+  environment     String
+  score           Decimal  @db.Decimal(5, 2)
+  confidence      Decimal  @db.Decimal(5, 4)
+  state           String
+  executionScore  Decimal? @db.Decimal(5, 2)
+  activityScore   Decimal? @db.Decimal(5, 2)
+  fragilityScore  Decimal? @db.Decimal(5, 2)
+  spreadBps       Decimal? @db.Decimal(12, 6)
+  slippageBps     Decimal? @db.Decimal(12, 6)
+  depth25bpsQuote Decimal? @db.Decimal(24, 8)
+  quoteVolume24h  Decimal? @db.Decimal(24, 8)
+  relativeVolume  Decimal? @db.Decimal(12, 6)
+  volatility1h    Decimal? @db.Decimal(12, 6)
+  apiLatencyMs    Int?
+  reasons         Json
+  createdAt       DateTime @default(now())
+
+  @@index([symbol, createdAt])
+  @@map("liquidity_snapshots")
+}

@@ -63,7 +63,8 @@ export const ModelName = {
   ExchangeOrder: 'ExchangeOrder',
   ExchangeFill: 'ExchangeFill',
   Position: 'Position',
-  AuditEvent: 'AuditEvent'
+  AuditEvent: 'AuditEvent',
+  LiquiditySnapshot: 'LiquiditySnapshot'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -293,6 +294,30 @@ export const AuditEventScalarFieldEnum = {
 } as const
 
 export type AuditEventScalarFieldEnum = (typeof AuditEventScalarFieldEnum)[keyof typeof AuditEventScalarFieldEnum]
+
+
+export const LiquiditySnapshotScalarFieldEnum = {
+  id: 'id',
+  symbol: 'symbol',
+  environment: 'environment',
+  score: 'score',
+  confidence: 'confidence',
+  state: 'state',
+  executionScore: 'executionScore',
+  activityScore: 'activityScore',
+  fragilityScore: 'fragilityScore',
+  spreadBps: 'spreadBps',
+  slippageBps: 'slippageBps',
+  depth25bpsQuote: 'depth25bpsQuote',
+  quoteVolume24h: 'quoteVolume24h',
+  relativeVolume: 'relativeVolume',
+  volatility1h: 'volatility1h',
+  apiLatencyMs: 'apiLatencyMs',
+  reasons: 'reasons',
+  createdAt: 'createdAt'
+} as const
+
+export type LiquiditySnapshotScalarFieldEnum = (typeof LiquiditySnapshotScalarFieldEnum)[keyof typeof LiquiditySnapshotScalarFieldEnum]
 
 
 export const SortOrder = {

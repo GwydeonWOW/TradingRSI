@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@cryptorsi/indicators": "workspace:*",
+    "@cryptorsi/liquidity": "workspace:*",
     "@cryptorsi/shared": "workspace:*",
     "@fastify/cors": "^11.0.0",
     "@fastify/env": "^5.0.0",

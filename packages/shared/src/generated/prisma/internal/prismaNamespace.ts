@@ -396,7 +396,8 @@ export const ModelName = {
   ExchangeOrder: 'ExchangeOrder',
   ExchangeFill: 'ExchangeFill',
   Position: 'Position',
-  AuditEvent: 'AuditEvent'
+  AuditEvent: 'AuditEvent',
+  LiquiditySnapshot: 'LiquiditySnapshot'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -412,7 +413,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "userMfaSecret" | "userRecoveryCode" | "userSession" | "exchangeCredential" | "strategy" | "strategyVersion" | "signal" | "decision" | "exchangeOrder" | "exchangeFill" | "position" | "auditEvent"
+    modelProps: "user" | "userMfaSecret" | "userRecoveryCode" | "userSession" | "exchangeCredential" | "strategy" | "strategyVersion" | "signal" | "decision" | "exchangeOrder" | "exchangeFill" | "position" | "auditEvent" | "liquiditySnapshot"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1378,6 +1379,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    LiquiditySnapshot: {
+      payload: Prisma.$LiquiditySnapshotPayload<ExtArgs>
+      fields: Prisma.LiquiditySnapshotFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.LiquiditySnapshotFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LiquiditySnapshotPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.LiquiditySnapshotFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LiquiditySnapshotPayload>
+        }
+        findFirst: {
+          args: Prisma.LiquiditySnapshotFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LiquiditySnapshotPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.LiquiditySnapshotFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LiquiditySnapshotPayload>
+        }
+        findMany: {
+          args: Prisma.LiquiditySnapshotFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LiquiditySnapshotPayload>[]
+        }
+        create: {
+          args: Prisma.LiquiditySnapshotCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LiquiditySnapshotPayload>
+        }
+        createMany: {
+          args: Prisma.LiquiditySnapshotCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.LiquiditySnapshotCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LiquiditySnapshotPayload>[]
+        }
+        delete: {
+          args: Prisma.LiquiditySnapshotDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LiquiditySnapshotPayload>
+        }
+        update: {
+          args: Prisma.LiquiditySnapshotUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LiquiditySnapshotPayload>
+        }
+        deleteMany: {
+          args: Prisma.LiquiditySnapshotDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.LiquiditySnapshotUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.LiquiditySnapshotUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LiquiditySnapshotPayload>[]
+        }
+        upsert: {
+          args: Prisma.LiquiditySnapshotUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LiquiditySnapshotPayload>
+        }
+        aggregate: {
+          args: Prisma.LiquiditySnapshotAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateLiquiditySnapshot>
+        }
+        groupBy: {
+          args: Prisma.LiquiditySnapshotGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.LiquiditySnapshotGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.LiquiditySnapshotCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.LiquiditySnapshotCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1628,6 +1703,30 @@ export const AuditEventScalarFieldEnum = {
 } as const
 
 export type AuditEventScalarFieldEnum = (typeof AuditEventScalarFieldEnum)[keyof typeof AuditEventScalarFieldEnum]
+
+
+export const LiquiditySnapshotScalarFieldEnum = {
+  id: 'id',
+  symbol: 'symbol',
+  environment: 'environment',
+  score: 'score',
+  confidence: 'confidence',
+  state: 'state',
+  executionScore: 'executionScore',
+  activityScore: 'activityScore',
+  fragilityScore: 'fragilityScore',
+  spreadBps: 'spreadBps',
+  slippageBps: 'slippageBps',
+  depth25bpsQuote: 'depth25bpsQuote',
+  quoteVolume24h: 'quoteVolume24h',
+  relativeVolume: 'relativeVolume',
+  volatility1h: 'volatility1h',
+  apiLatencyMs: 'apiLatencyMs',
+  reasons: 'reasons',
+  createdAt: 'createdAt'
+} as const
+
+export type LiquiditySnapshotScalarFieldEnum = (typeof LiquiditySnapshotScalarFieldEnum)[keyof typeof LiquiditySnapshotScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1897,6 +1996,7 @@ export type GlobalOmitConfig = {
   exchangeFill?: Prisma.ExchangeFillOmit
   position?: Prisma.PositionOmit
   auditEvent?: Prisma.AuditEventOmit
+  liquiditySnapshot?: Prisma.LiquiditySnapshotOmit
 }
 
 /* Types for Logging */

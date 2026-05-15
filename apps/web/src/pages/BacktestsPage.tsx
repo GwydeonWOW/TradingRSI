@@ -318,7 +318,7 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
 }
 
 function PastResultsTab() {
-  const [results, setResults] = useState<BacktestResult[]>([]);
+  const [results, setResults] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -332,7 +332,7 @@ function PastResultsTab() {
     setError(null);
     try {
       const res = await backtestsApi.list();
-      setResults(res.data);
+      setResults(res.data as unknown as Record<string, unknown>[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar resultados');
     } finally {
@@ -359,8 +359,17 @@ function PastResultsTab() {
 
   return (
     <div className="space-y-3">
-      {results.map((r, i) => {
+      {results.map((r: Record<string, unknown>, i: number) => {
         const isOpen = expanded === i;
+        const symbol = (r.symbol as string) ?? '?';
+        const interval = (r.interval as string) ?? '?';
+        const startDate = (r.startDate as string) ?? '';
+        const endDate = (r.endDate as string) ?? '';
+        const totalPnl = (r.totalPnl as number) ?? 0;
+        const winRate = (r.winRate as number) ?? 0;
+        const totalTrades = (r.totalTrades as number) ?? 0;
+        const maxDrawdown = (r.maxDrawdown as number) ?? 0;
+        const sharpeRatio = (r.sharpeRatio as number) ?? 0;
         return (
           <div key={i} className="rounded-lg border border-border bg-bg-secondary">
             <button
@@ -369,20 +378,20 @@ function PastResultsTab() {
               className="flex w-full items-center justify-between p-4 text-left"
             >
               <div className="flex flex-wrap items-center gap-4">
-                <span className="text-sm font-medium text-text-primary">{r.params.symbol}</span>
-                <span className="rounded bg-bg-tertiary px-2 py-0.5 text-xs text-text-secondary">{r.params.interval}</span>
+                <span className="text-sm font-medium text-text-primary">{symbol}</span>
+                <span className="rounded bg-bg-tertiary px-2 py-0.5 text-xs text-text-secondary">{interval}</span>
                 <span className="text-xs text-text-muted">
-                  {r.params.startDate} - {r.params.endDate}
+                  {startDate} - {endDate}
                 </span>
               </div>
               <div className="flex items-center gap-4">
-                <span className={`text-sm font-medium ${pnlColor(r.metrics.totalPnl)}`}>
-                  {pnlSign(r.metrics.totalPnl)}{r.metrics.totalPnl.toFixed(2)} USDT
+                <span className={`text-sm font-medium ${pnlColor(totalPnl)}`}>
+                  {pnlSign(totalPnl)}{totalPnl.toFixed(2)} USDT
                 </span>
                 <span className="text-xs text-text-secondary">
-                  {(r.metrics.winRate * 100).toFixed(0)}% win
+                  {(winRate * 100).toFixed(0)}% win
                 </span>
-                <span className="text-xs text-text-muted">{r.metrics.totalTrades} trades</span>
+                <span className="text-xs text-text-muted">{totalTrades} trades</span>
                 <svg
                   className={`h-4 w-4 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`}
                   fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
@@ -392,12 +401,34 @@ function PastResultsTab() {
               </div>
             </button>
             {isOpen && (
-              <div className="border-t border-border p-4 pt-4 space-y-4">
-                <MetricsGrid metrics={r.metrics} />
-                <div>
-                  <h3 className="mb-2 text-sm font-medium text-text-secondary">Trades ({r.trades.length})</h3>
-                  <TradesTable trades={r.trades} />
+              <div className="border-t border-border p-4 pt-4 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
+                    <p className="text-sm text-text-secondary">Total Trades</p>
+                    <p className="mt-1 text-2xl font-semibold text-text-primary">{totalTrades}</p>
+                  </div>
+                  <div className={`rounded-lg border border-border bg-bg-secondary p-4 border-l-4 ${totalPnl >= 0 ? 'border-l-success' : 'border-l-danger'}`}>
+                    <p className="text-sm text-text-secondary">PnL Total</p>
+                    <p className={`mt-1 text-2xl font-semibold ${pnlColor(totalPnl)}`}>
+                      {pnlSign(totalPnl)}{totalPnl.toFixed(2)} USDT
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
+                    <p className="text-sm text-text-secondary">Win Rate</p>
+                    <p className="mt-1 text-2xl font-semibold text-text-primary">{(winRate * 100).toFixed(1)}%</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-warning">
+                    <p className="text-sm text-text-secondary">Max Drawdown</p>
+                    <p className="mt-1 text-2xl font-semibold text-danger">{(maxDrawdown * 100).toFixed(2)}%</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
+                    <p className="text-sm text-text-secondary">Sharpe Ratio</p>
+                    <p className="mt-1 text-2xl font-semibold text-text-primary">{sharpeRatio.toFixed(2)}</p>
+                  </div>
                 </div>
+                <p className="text-xs text-text-muted">
+                  Datos guardados del backtest ejecutado. Ejecuta un nuevo backtest para ver trades detallados.
+                </p>
               </div>
             )}
           </div>

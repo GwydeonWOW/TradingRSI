@@ -287,6 +287,48 @@ export async function strategyRoutes(app: FastifyInstance) {
     }
   });
 
+  // DELETE /api/strategies/:id - Delete strategy
+  app.delete('/api/strategies/:id', async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+
+      const existing = await prisma.strategy.findUnique({ where: { id } });
+
+      if (!existing) {
+        return reply.code(404).send({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Strategy not found' },
+        });
+      }
+
+      if (existing.status === 'active') {
+        return reply.code(400).send({
+          success: false,
+          error: { code: 'CONFLICT', message: 'Cannot delete an active strategy. Pause it first.' },
+        });
+      }
+
+      await prisma.strategyVersion.deleteMany({ where: { strategyId: id } });
+      await prisma.strategy.delete({ where: { id } });
+
+      await createAuditEvent({
+        actorType: 'system',
+        eventType: 'strategy.deleted',
+        entityType: 'strategy',
+        entityId: id,
+        payload: { name: existing.name, previousStatus: existing.status },
+      });
+
+      return reply.code(200).send({ success: true, data: { id } });
+    } catch (err) {
+      logger.error(err, 'Failed to delete strategy');
+      return reply.code(500).send({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to delete strategy' },
+      });
+    }
+  });
+
   // POST /api/strategies/:id/duplicate - Duplicate strategy
   app.post('/api/strategies/:id/duplicate', async (request, reply) => {
     try {

@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut } from './client.ts';
+import { apiGet, apiPost, apiPut, apiDelete } from './client.ts';
 import type { StrategyStatus, ExecutionMode, ExchangeEnvironment, StrategyConfig } from '@cryptorsi/shared';
 
 export interface StrategyListItem {
@@ -106,6 +106,7 @@ export const strategiesApi = {
   activate: (id: string) => apiPost<{ success: true; data: StrategyDetail }>(`/strategies/${id}/activate`),
   pause: (id: string) => apiPost<{ success: true; data: StrategyDetail }>(`/strategies/${id}/pause`),
   duplicate: (id: string) => apiPost<{ success: true; data: StrategyDetail }>(`/strategies/${id}/duplicate`),
+  delete: (id: string) => apiDelete<{ success: true; data: { id: string } }>(`/strategies/${id}`),
 };
 
 export const backtestsApi = {

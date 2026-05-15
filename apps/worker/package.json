@@ -10,6 +10,7 @@
   "dependencies": {
     "@cryptorsi/shared": "workspace:*",
     "@cryptorsi/indicators": "workspace:*",
+    "@cryptorsi/liquidity": "workspace:*",
     "@prisma/adapter-pg": "^7.0.0",
     "@prisma/client": "^7.0.0",
     "pg": "^8.13.0",

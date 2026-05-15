@@ -14,6 +14,7 @@ import { SettingsPage } from './pages/SettingsPage.tsx';
 import { LiveReadinessPage } from './pages/LiveReadinessPage.tsx';
 import { AuditPage } from './pages/AuditPage.tsx';
 import { BacktestsPage } from './pages/BacktestsPage.tsx';
+import { LiquidityPage } from './pages/LiquidityPage.tsx';
 import { VersionComparePage } from './pages/VersionComparePage.tsx';
 
 export default function App() {
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/live-readiness" element={<LiveReadinessPage />} />
         <Route path="/audit" element={<AuditPage />} />
+        <Route path="/liquidity" element={<LiquidityPage />} />
         <Route path="/backtests" element={<BacktestsPage />} />
       </Route>
     </Routes>

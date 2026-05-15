@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { tradingApi } from '../api/trading.ts';
+import { liquidityApi } from '../api/liquidity.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'] as const;
@@ -9,6 +10,8 @@ interface PriceData {
   price: number | null;
   rsi: number | null;
   change24h: number | null;
+  liquidityScore: number | null;
+  liquidityState: string | null;
   error: boolean;
 }
 
@@ -33,7 +36,7 @@ export function MarketPage() {
   const [environment, setEnvironment] = useState<string>('demo');
   const [loading, setLoading] = useState(true);
   const [prices, setPrices] = useState<PriceData[]>(
-    SYMBOLS.map((s) => ({ symbol: s, price: null, rsi: null, change24h: null, error: false }))
+    SYMBOLS.map((s) => ({ symbol: s, price: null, rsi: null, change24h: null, liquidityScore: null, liquidityState: null, error: false }))
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -61,18 +64,42 @@ export function MarketPage() {
             const change24h = parseFloat(first.open) > 0
               ? ((parseFloat(last.close) - parseFloat(first.open)) / parseFloat(first.open)) * 100
               : null;
-            return { symbol, price: parseFloat(last.close), rsi, change24h, error: false } as PriceData;
+            return { symbol, price: parseFloat(last.close), rsi, change24h, liquidityScore: null, liquidityState: null, error: false } as PriceData;
           }
-          return { symbol, price: null, rsi: null, change24h: null, error: true } as PriceData;
+          return { symbol, price: null, rsi: null, change24h: null, liquidityScore: null, liquidityState: null, error: true } as PriceData;
         })
       );
 
       setPrices(
         results.map((r, i) =>
-          r.status === 'fulfilled' ? r.value : ({ symbol: SYMBOLS[i]!, price: null, rsi: null, change24h: null, error: true } as PriceData)
+          r.status === 'fulfilled' ? r.value : ({ symbol: SYMBOLS[i]!, price: null, rsi: null, change24h: null, liquidityScore: null, liquidityState: null, error: true } as PriceData)
         )
       );
       setError(null);
+
+      // Fetch liquidity scores (non-blocking, best-effort)
+      Promise.allSettled(
+        SYMBOLS.map(async (symbol) => {
+          try {
+            const res = await liquidityApi.getCurrent(symbol);
+            return { symbol, score: res.data.score, state: res.data.state };
+          } catch {
+            return null;
+          }
+        })
+      ).then((liqResults) => {
+        setPrices((prev) =>
+          prev.map((p) => {
+            const liq = liqResults.find(
+              (r) => r.status === 'fulfilled' && r.value && r.value.symbol === p.symbol,
+            );
+            if (liq && liq.status === 'fulfilled' && liq.value) {
+              return { ...p, liquidityScore: liq.value.score, liquidityState: liq.value.state };
+            }
+            return p;
+          })
+        );
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar datos');
       setConnected(false);
@@ -191,6 +218,24 @@ export function MarketPage() {
                     </div>
                   )}
                 </div>
+                {p.liquidityScore !== null && (
+                  <div className="mt-2 border-t border-border pt-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-muted">Liquidity</span>
+                      <span className={`text-xs font-medium ${p.liquidityState === 'excellent' || p.liquidityState === 'good' ? 'text-success' : p.liquidityState === 'acceptable' ? 'text-warning' : 'text-danger'}`}>
+                        {p.liquidityScore.toFixed(0)}/100
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-tertiary">
+                      <div
+                        className={`h-full rounded-full ${
+                          (p.liquidityState === 'excellent' || p.liquidityState === 'good') ? 'bg-success' : p.liquidityState === 'acceptable' ? 'bg-warning' : 'bg-danger'
+                        }`}
+                        style={{ width: `${Math.min(100, p.liquidityScore)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

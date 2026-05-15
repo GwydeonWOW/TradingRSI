@@ -35,6 +35,9 @@ importers:
       '@cryptorsi/indicators':
         specifier: workspace:*
         version: link:../../packages/indicators
+      '@cryptorsi/liquidity':
+        specifier: workspace:*
+        version: link:../../packages/liquidity
       '@cryptorsi/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -127,6 +130,9 @@ importers:
       '@cryptorsi/indicators':
         specifier: workspace:*
         version: link:../../packages/indicators
+      '@cryptorsi/liquidity':
+        specifier: workspace:*
+        version: link:../../packages/liquidity
       '@cryptorsi/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -180,6 +186,12 @@ importers:
     devDependencies:
       typescript:
         specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/liquidity:
+    devDependencies:
+      typescript:
+        specifier: ^5.8.0
         version: 5.9.3
 
   packages/shared:

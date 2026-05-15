@@ -38,6 +38,7 @@ const groups: NavGroup[] = [
     title: 'Mercado',
     items: [
       { label: 'Datos de mercado', path: '/market', icon: '🌍' },
+      { label: 'Liquidity Health', path: '/liquidity', icon: '💧' },
     ],
   },
   {

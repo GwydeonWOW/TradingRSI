@@ -1,5 +1,6 @@
 import pino from 'pino';
 import { reconciliationLoop } from './jobs/reconciliationLoop.js';
+import { liquidityLoop } from './jobs/liquidityLoop.js';
 
 const logger = pino({
   transport: {
@@ -26,6 +27,9 @@ async function main() {
 
     // Run reconciliation every 5 minutes
     await reconciliationLoop();
+
+    // Run liquidity snapshot collection
+    await liquidityLoop();
 
     await sleep(reconciliationIntervalMs);
   }

@@ -87,6 +87,16 @@ export function StrategyDetailPage() {
     }
   }
 
+  async function handleDelete() {
+    if (!confirm('¿Estas seguro? Esta accion eliminara la estrategia y todo su historial.')) return;
+    try {
+      await strategiesApi.delete(id!);
+      navigate('/strategies');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al eliminar');
+    }
+  }
+
   if (loading) return <LoadingSpinner />;
 
   if (error || !strategy) {
@@ -186,6 +196,15 @@ export function StrategyDetailPage() {
               Archivar
             </button>
           )}
+          {strategy.status !== 'active' && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="rounded-md bg-danger/15 px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger/25"
+            >
+              Eliminar
+            </button>
+          )}
         </div>
       </div>
 
@@ -199,7 +218,7 @@ export function StrategyDetailPage() {
         />
         <MetricCard
           title="Win Rate"
-          value={`${(strategy.metrics.winRate * 100).toFixed(1)}%`}
+          value={`${strategy.metrics.winRate.toFixed(1)}%`}
         />
         <MetricCard title="Version activa" value={strategy.currentVersion != null ? `v${strategy.currentVersion}` : '-'} />
       </div>

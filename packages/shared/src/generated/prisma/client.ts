@@ -106,3 +106,8 @@ export type Position = Prisma.PositionModel
  * 
  */
 export type AuditEvent = Prisma.AuditEventModel
+/**
+ * Model LiquiditySnapshot
+ * 
+ */
+export type LiquiditySnapshot = Prisma.LiquiditySnapshotModel
