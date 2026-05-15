@@ -62,6 +62,7 @@ export interface BacktestMetrics {
 }
 
 export interface BacktestTrade {
+  symbol?: string;
   entryTime: number;
   exitTime: number;
   side: string;

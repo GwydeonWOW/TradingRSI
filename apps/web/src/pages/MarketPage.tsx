@@ -3,9 +3,8 @@ import { tradingApi } from '../api/trading.ts';
 import { liquidityApi } from '../api/liquidity.ts';
 import { getSymbols } from '../api/config.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
-import { CandlestickChart, type CandleData } from '../components/CandlestickChart.tsx';
 import { detectRSIDivergence, calculateRSI as calculateRSIFull } from '../utils/rsiDivergence.ts';
-import { RsiChart, type RsiDataPoint } from '../components/RsiChart.tsx';
+import { MarketChart } from '../components/MarketChart.tsx';
 
 const TIMEFRAMES = [
   { value: '1m', label: '1m' },
@@ -51,7 +50,7 @@ export function MarketPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedChart, setSelectedChart] = useState<string>(symbols[0] ?? 'BTCUSDT');
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1h');
-  const [chartData, setChartData] = useState<CandleData[]>([]);
+  const [chartData, setChartData] = useState<{ time: number; open: number; high: number; low: number; close: number; volume: number }[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [showDivergence, setShowDivergence] = useState(true);
 
@@ -160,6 +159,12 @@ export function MarketPage() {
     fetchChart();
   }, [fetchChart]);
 
+  // Refresh chart data every 10s to keep current candle up to date
+  useEffect(() => {
+    const interval = setInterval(fetchChart, 10000);
+    return () => clearInterval(interval);
+  }, [fetchChart]);
+
   useEffect(() => {
     const interval = setInterval(fetchPrices, 30000);
     return () => clearInterval(interval);
@@ -172,7 +177,7 @@ export function MarketPage() {
     return detectRSIDivergence(times, closes);
   }, [chartData, showDivergence]);
 
-  const rsiChartData: RsiDataPoint[] = useMemo(() => {
+  const rsiChartData: Array<{ time: number; value: number }> = useMemo(() => {
     if (chartData.length < 16) return [];
     const closes = chartData.map((d) => d.close);
     const rsiValues = calculateRSIFull(closes, 14);
@@ -355,14 +360,7 @@ export function MarketPage() {
                 <LoadingSpinner />
               </div>
             ) : chartData.length > 0 ? (
-              <>
-                <CandlestickChart data={chartData} height={400} showVolume markers={divergenceMarkers} />
-                {rsiChartData.length > 0 && (
-                  <div className="mt-1">
-                    <RsiChart data={rsiChartData} height={150} />
-                  </div>
-                )}
-              </>
+              <MarketChart data={chartData} rsiData={rsiChartData.length > 0 ? rsiChartData : undefined} height={400} rsiHeight={150} markers={divergenceMarkers} />
             ) : (
               <p className="text-sm text-text-muted">Sin datos del gráfico.</p>
             )}

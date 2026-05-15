@@ -177,6 +177,7 @@ function TradesTable({ trades, symbol, interval }: { trades: BacktestTrade[]; sy
       <table className="w-full text-left text-sm">
         <thead className="border-b border-border bg-bg-tertiary">
           <tr>
+            <th className="px-4 py-3 font-medium text-text-secondary">Token</th>
             <th className="px-4 py-3 font-medium text-text-secondary">Entrada</th>
             <th className="px-4 py-3 font-medium text-text-secondary">Salida</th>
             <th className="px-4 py-3 font-medium text-text-secondary">Lado</th>
@@ -194,6 +195,9 @@ function TradesTable({ trades, symbol, interval }: { trades: BacktestTrade[]; sy
           {trades.map((t, i) => (
             <>
               <tr key={i} className={`hover:bg-bg-hover ${expandedIdx === i ? 'bg-bg-hover' : ''}`}>
+                <td className="px-4 py-2">
+                  <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">{t.symbol || symbol}</span>
+                </td>
                 <td className="px-4 py-2 text-text-secondary text-xs">{formatDateTime(t.entryTime)}</td>
                 <td className="px-4 py-2 text-text-secondary text-xs">{formatDateTime(t.exitTime)}</td>
                 <td className="px-4 py-2">
@@ -227,7 +231,7 @@ function TradesTable({ trades, symbol, interval }: { trades: BacktestTrade[]; sy
               </tr>
               {expandedIdx === i && (
                 <tr key={`${i}-chart`}>
-                  <td colSpan={11} className="bg-bg-primary p-4">
+                  <td colSpan={12} className="bg-bg-primary p-4">
                     {chartLoading ? (
                       <div className="flex h-[300px] items-center justify-center">
                         <LoadingSpinner />

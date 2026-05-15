@@ -13,6 +13,7 @@ export interface BacktestParams {
 }
 
 export interface BacktestTrade {
+  symbol: string;
   entryTime: number;
   exitTime: number;
   side: 'BUY';
@@ -132,6 +133,7 @@ export function runBacktest(
 
       if (exitResult) {
         exitResult.trade.exitRsi = Number.isNaN(rsiValue) ? null : Math.round(rsiValue * 100) / 100;
+        exitResult.trade.symbol = params.symbol;
         trades.push(exitResult.trade);
         capital += exitResult.proceeds;
         openPosition = null;
@@ -186,6 +188,7 @@ export function runBacktest(
     const duration = candles.length - 1 - openPosition.entryCandleIndex;
 
     trades.push({
+      symbol: params.symbol,
       entryTime: openPosition.entryTime,
       exitTime: lastCandle.openTime,
       side: 'BUY',
@@ -284,6 +287,7 @@ function buildTrade(
 
   return {
     trade: {
+      symbol: '',
       entryTime: position.entryTime,
       exitTime: candle.openTime,
       side: 'BUY',
