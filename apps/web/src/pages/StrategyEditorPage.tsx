@@ -110,7 +110,7 @@ export function StrategyEditorPage() {
     setSaving(true);
     setError(null);
     try {
-      await strategiesApi.update(id!, { config });
+      await strategiesApi.update(id!, { name: strategyName, description: strategyDescription, config });
       navigate(`/strategies/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar');

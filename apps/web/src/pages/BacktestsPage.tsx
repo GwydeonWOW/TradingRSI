@@ -82,12 +82,12 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
           {pnlSign(m.totalPnl)}{m.totalPnl.toFixed(2)} USDT
         </p>
         <p className={`mt-1 text-xs ${pnlColor(m.totalPnlPct)}`}>
-          {pnlSign(m.totalPnlPct)}{(m.totalPnlPct * 100).toFixed(2)}%
+          {pnlSign(m.totalPnlPct)}{m.totalPnlPct.toFixed(2)}%
         </p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-warning">
         <p className="text-sm text-text-secondary">Max Drawdown</p>
-        <p className="mt-1 text-2xl font-semibold text-danger">{(m.maxDrawdown * 100).toFixed(2)}%</p>
+        <p className="mt-1 text-2xl font-semibold text-danger">{m.maxDrawdown.toFixed(2)}%</p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
         <p className="text-sm text-text-secondary">Profit Factor</p>
@@ -99,11 +99,11 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-success">
         <p className="text-sm text-text-secondary">Mejor Trade</p>
-        <p className="mt-1 text-2xl font-semibold text-success">{pnlSign(m.bestTrade)}{(m.bestTrade * 100).toFixed(2)}%</p>
+        <p className="mt-1 text-2xl font-semibold text-success">{pnlSign(m.bestTrade)}{m.bestTrade.toFixed(2)}%</p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-danger">
         <p className="text-sm text-text-secondary">Peor Trade</p>
-        <p className="mt-1 text-2xl font-semibold text-danger">{(m.worstTrade * 100).toFixed(2)}%</p>
+        <p className="mt-1 text-2xl font-semibold text-danger">{m.worstTrade.toFixed(2)}%</p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
         <p className="text-sm text-text-secondary">Duracion Media</p>
@@ -155,7 +155,7 @@ function TradesTable({ trades }: { trades: BacktestTrade[] }) {
                 {pnlSign(t.pnl)}{t.pnl.toFixed(2)}
               </td>
               <td className={`px-4 py-2 ${pnlColor(t.pnlPct)}`}>
-                {pnlSign(t.pnlPct)}{(t.pnlPct * 100).toFixed(2)}%
+                {pnlSign(t.pnlPct)}{t.pnlPct.toFixed(2)}%
               </td>
               <td className="px-4 py-2 text-text-muted text-xs">{t.exitReason}</td>
               <td className="px-4 py-2 text-xs text-text-muted">
@@ -227,11 +227,24 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
     fetchStrategies();
   }, []);
 
-  // When strategy changes, update symbols display
+  // When strategy changes, update symbols and default capital from strategy config
   useEffect(() => {
     const selected = strategies.find((s) => s.id === strategyId);
     if (selected) {
       setStrategySymbols(selected.symbols);
+      // Fetch strategy version config to get maxTotalExposureQuote as default capital
+      strategiesApi.get(strategyId).then((res) => {
+        const detail = res.data;
+        if (detail.versions.length > 0) {
+          const latestVersion = detail.versions[detail.versions.length - 1]!;
+          strategiesApi.getVersion(strategyId, latestVersion.id).then((vRes) => {
+            const capital = vRes.data.config?.risk?.maxTotalExposureQuote;
+            if (capital && capital > 0) {
+              setInitialCapital(String(capital));
+            }
+          }).catch(() => {});
+        }
+      }).catch(() => {});
     } else {
       setStrategySymbols([]);
     }
@@ -510,7 +523,7 @@ function PastResultsTab() {
                   </div>
                   <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-warning">
                     <p className="text-sm text-text-secondary">Max Drawdown</p>
-                    <p className="mt-1 text-2xl font-semibold text-danger">{(maxDrawdown * 100).toFixed(2)}%</p>
+                    <p className="mt-1 text-2xl font-semibold text-danger">{maxDrawdown.toFixed(2)}%</p>
                   </div>
                   <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
                     <p className="text-sm text-text-secondary">Sharpe Ratio</p>
