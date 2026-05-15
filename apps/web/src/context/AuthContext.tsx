@@ -45,8 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await authApi.login({ email, password });
     const data = res.data;
     if (data.requiresMfa) {
+      // Store token in localStorage for the challenge request, but don't set
+      // state token — that triggers fetchMe which would fail (mfaVerified:false)
+      // and clear the token, breaking the challenge flow.
       localStorage.setItem('token', data.token);
-      setToken(data.token);
       return { requiresMfa: true };
     }
     localStorage.setItem('token', data.token);
