@@ -26,6 +26,13 @@ const PUBLIC_PATHS = [
   '/api/auth/needs-setup',
 ];
 
+// Paths that require JWT but skip MFA check (used during MFA setup/verification)
+const MFA_EXEMPT_PATHS = [
+  '/api/auth/2fa/challenge',
+  '/api/auth/2fa/setup',
+  '/api/auth/2fa/verify',
+];
+
 function validateSecrets() {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret || jwtSecret === 'change_me_in_production' || jwtSecret === 'dev-secret-change-in-production') {
@@ -80,8 +87,8 @@ async function start() {
       return reply.code(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
     }
 
-    // Enforce MFA for users who have it enabled
-    if (!auth.mfaVerified) {
+    // Enforce MFA for users who have it enabled (skip during 2FA setup/challenge)
+    if (!auth.mfaVerified && !MFA_EXEMPT_PATHS.some((p) => request.url.startsWith(p))) {
       const user = await prisma.user.findUnique({ where: { id: auth.userId }, select: { mfaEnabled: true } });
       if (user?.mfaEnabled) {
         return reply.code(403).send({ success: false, error: { code: 'MFA_REQUIRED', message: '2FA verification required' } });
