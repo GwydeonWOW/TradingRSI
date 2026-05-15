@@ -2,7 +2,15 @@ import { BINANCE_ENVIRONMENTS } from '@cryptorsi/shared';
 import { calculateLiquidityHealth } from '@cryptorsi/liquidity';
 import type { LiquidityInput } from '@cryptorsi/liquidity';
 import { prisma } from '../db.js';
-const SYMBOLS = ['BTCUSDC', 'ETHUSDC', 'SOLUSDC', 'BNBUSDC'] as const;
+
+// Demo/testnet only support USDT pairs; production can use USDC
+const DEMO_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'] as const;
+const PROD_SYMBOLS = ['BTCUSDC', 'ETHUSDC', 'SOLUSDC', 'BNBUSDC'] as const;
+
+function getSymbols(): readonly string[] {
+  const env = (process.env.BINANCE_ENV ?? 'demo') as string;
+  return env === 'production' ? PROD_SYMBOLS : DEMO_SYMBOLS;
+}
 
 type BinanceEnv = 'demo' | 'testnet' | 'production';
 
@@ -30,6 +38,13 @@ async function collectAndSave(symbol: string): Promise<void> {
     fetch(`${baseUrl}/api/v3/aggTrades?symbol=${symbol}&limit=50`),
     fetch(`${baseUrl}/api/v3/klines?symbol=${symbol}&interval=1m&limit=60`),
   ]);
+
+  // Validate responses
+  for (const res of [bookTickerRes, depthRes, ticker24hRes, aggTradesRes, klinesRes]) {
+    if (!res.ok) {
+      throw new Error(`Binance API returned ${res.status} for ${symbol}`);
+    }
+  }
 
   // Futures data (graceful fallback)
   const [premiumIndexRes, openInterestRes, longShortRes, takerBuySellRes] = await Promise.all([
@@ -167,7 +182,8 @@ async function collectAndSave(symbol: string): Promise<void> {
 }
 
 export async function liquidityLoop(): Promise<void> {
-  for (const symbol of SYMBOLS) {
+  const symbols = getSymbols();
+  for (const symbol of symbols) {
     try {
       await collectAndSave(symbol);
     } catch (err) {

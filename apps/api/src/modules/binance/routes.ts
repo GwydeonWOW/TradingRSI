@@ -563,6 +563,28 @@ export async function binanceRoutes(app: FastifyInstance) {
     };
   });
 
+  // POST /api/binance/streams/start
+  app.post('/api/binance/streams/start', async () => {
+    return {
+      success: true,
+      data: {
+        connected: false,
+        message: 'WebSocket streams not yet implemented. Data is fetched via REST polling.',
+      },
+    };
+  });
+
+  // POST /api/binance/streams/stop
+  app.post('/api/binance/streams/stop', async () => {
+    return {
+      success: true,
+      data: {
+        connected: false,
+        message: 'WebSocket streams not yet implemented.',
+      },
+    };
+  });
+
   // GET /api/binance/live-readiness
   app.get('/api/binance/live-readiness', async () => {
     try {
