@@ -135,6 +135,72 @@ function LiquidityCard({ symbol }: { symbol: string }) {
         </div>
       </div>
 
+      {/* Crypto Systemic Block */}
+      {(data as any).cryptoSystemic && (
+        <div className="mt-3 rounded border border-border bg-bg-primary p-3">
+          <p className="mb-2 text-xs font-medium text-text-primary">Indicadores Sistemicos Crypto</p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {(data as any).cryptoSystemic.fundingRate !== null && (
+              <div className="flex justify-between">
+                <span className="text-text-muted">Funding Rate</span>
+                <span className="font-medium text-text-primary">
+                  {((data as any).cryptoSystemic.fundingRate * 100).toFixed(4)}%
+                </span>
+              </div>
+            )}
+            {(data as any).cryptoSystemic.openInterest !== null && (
+              <div className="flex justify-between">
+                <span className="text-text-muted">Open Interest</span>
+                <span className="font-medium text-text-primary">
+                  {Number((data as any).cryptoSystemic.openInterest).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </span>
+              </div>
+            )}
+            {(data as any).cryptoSystemic.longShortRatio !== null && (
+              <div className="flex justify-between">
+                <span className="text-text-muted">L/S Ratio</span>
+                <span className="font-medium text-text-primary">
+                  {(data as any).cryptoSystemic.longShortRatio.toFixed(3)}
+                </span>
+              </div>
+            )}
+            {(data as any).cryptoSystemic.takerBuySellRatio !== null && (
+              <div className="flex justify-between">
+                <span className="text-text-muted">Taker B/S</span>
+                <span className="font-medium text-text-primary">
+                  {(data as any).cryptoSystemic.takerBuySellRatio.toFixed(3)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Advanced Fragility Metrics */}
+      {data.fragility.metrics && (data.fragility.metrics['amihud'] || data.fragility.metrics['kylesLambda']) && (
+        <div className="mt-3 rounded border border-border bg-bg-primary p-3">
+          <p className="mb-2 text-xs font-medium text-text-primary">Impacto en Precio</p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {data.fragility.metrics['amihud'] !== undefined && data.fragility.metrics['amihud'] !== null && (
+              <div className="flex justify-between">
+                <span className="text-text-muted">Amihud</span>
+                <span className="font-medium text-text-primary">
+                  {((data.fragility.metrics['amihud'] as number) * 10000).toFixed(2)}
+                </span>
+              </div>
+            )}
+            {data.fragility.metrics['kylesLambda'] !== undefined && data.fragility.metrics['kylesLambda'] !== null && (
+              <div className="flex justify-between">
+                <span className="text-text-muted">Kyle Lambda</span>
+                <span className="font-medium text-text-primary">
+                  {((data.fragility.metrics['kylesLambda'] as number) * 10000).toFixed(2)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {data.execution.metrics && (
         <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-xs">
           <div className="flex justify-between">
@@ -203,7 +269,8 @@ export function LiquidityPage() {
         <h2 className="text-sm font-medium text-text-primary">Como funciona</h2>
         <p className="mt-2 text-xs text-text-muted">
           El Liquidity Health Score mide la calidad de liquidez en tiempo real combinando: spread, profundidad del
-          order book, slippage estimado, volumen, volatilidad y latencia. Un score bajo indica que el mercado no
+          order book, slippage estimado, volumen, volatilidad, Amihud illiquidity, Kyle's Lambda, funding rate,
+          open interest, long/short ratio, taker buy/sell ratio y latencia. Un score bajo indica que el mercado no
           tiene suficiente liquidez para ejecutar ordenes con bajo coste. El bot usa este indicador para permitir,
           reducir o bloquear nuevas entradas.
         </p>

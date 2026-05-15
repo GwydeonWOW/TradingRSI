@@ -18,6 +18,8 @@ export interface LiquidityResult {
   activity: LiquidityBlock;
   fragility: LiquidityBlock;
   dataQuality: LiquidityBlock;
+  cryptoSystemic?: Record<string, number | null> | null;
+  macro?: Record<string, number | null> | null;
   reasons: string[];
 }
 

@@ -62,6 +62,8 @@ export async function liquidityRoutes(app: FastifyInstance) {
           activity: result.activity,
           fragility: result.fragility,
           dataQuality: result.dataQuality,
+          cryptoSystemic: input.cryptoSystemic ?? null,
+          macro: input.macro ?? null,
           reasons: result.reasons,
         },
       });
