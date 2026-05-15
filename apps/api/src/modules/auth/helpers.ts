@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
+import { Secret } from 'otpauth';
 import { prisma } from '../../infrastructure/db/prisma.js';
 
 const BCRYPT_ROUNDS = 12;
@@ -13,7 +14,8 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export function generateTotpSecret(): { secret: string; uri: string } {
-  const secret = crypto.randomBytes(20).toString('base64');
+  const secretObj = new Secret({ size: 20 });
+  const secret = secretObj.base32;
   const uri = `otpauth://totp/CryptoRSI?secret=${encodeURIComponent(secret)}&issuer=CryptoRSI`;
   return { secret, uri };
 }
