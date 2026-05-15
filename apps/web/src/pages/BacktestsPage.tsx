@@ -50,54 +50,69 @@ function pnlSign(value: number): string {
 }
 
 function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
+  const m = {
+    totalTrades: metrics?.totalTrades ?? 0,
+    winningTrades: metrics?.winningTrades ?? 0,
+    losingTrades: metrics?.losingTrades ?? 0,
+    winRate: metrics?.winRate ?? 0,
+    totalPnl: metrics?.totalPnl ?? 0,
+    totalPnlPct: metrics?.totalPnlPct ?? 0,
+    maxDrawdown: metrics?.maxDrawdown ?? 0,
+    profitFactor: metrics?.profitFactor ?? 0,
+    sharpeRatio: metrics?.sharpeRatio ?? 0,
+    bestTrade: metrics?.bestTrade ?? 0,
+    worstTrade: metrics?.worstTrade ?? 0,
+    avgTradeDuration: metrics?.avgTradeDuration ?? 0,
+    finalCapital: metrics?.finalCapital ?? 0,
+  };
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
         <p className="text-sm text-text-secondary">Total Trades</p>
-        <p className="mt-1 text-2xl font-semibold text-text-primary">{metrics.totalTrades}</p>
-        <p className="mt-1 text-xs text-text-muted">{metrics.winningTrades}G / {metrics.losingTrades}P</p>
+        <p className="mt-1 text-2xl font-semibold text-text-primary">{m.totalTrades}</p>
+        <p className="mt-1 text-xs text-text-muted">{m.winningTrades}G / {m.losingTrades}P</p>
       </div>
-      <div className={`rounded-lg border border-border bg-bg-secondary p-4 border-l-4 ${metrics.totalPnl >= 0 ? 'border-l-success' : 'border-l-danger'}`}>
+      <div className={`rounded-lg border border-border bg-bg-secondary p-4 border-l-4 ${m.totalPnl >= 0 ? 'border-l-success' : 'border-l-danger'}`}>
         <p className="text-sm text-text-secondary">Win Rate</p>
-        <p className="mt-1 text-2xl font-semibold text-text-primary">{(metrics.winRate * 100).toFixed(1)}%</p>
+        <p className="mt-1 text-2xl font-semibold text-text-primary">{m.winRate.toFixed(1)}%</p>
       </div>
-      <div className={`rounded-lg border border-border bg-bg-secondary p-4 border-l-4 ${metrics.totalPnl >= 0 ? 'border-l-success' : 'border-l-danger'}`}>
+      <div className={`rounded-lg border border-border bg-bg-secondary p-4 border-l-4 ${m.totalPnl >= 0 ? 'border-l-success' : 'border-l-danger'}`}>
         <p className="text-sm text-text-secondary">PnL Total</p>
-        <p className={`mt-1 text-2xl font-semibold ${pnlColor(metrics.totalPnl)}`}>
-          {pnlSign(metrics.totalPnl)}{metrics.totalPnl.toFixed(2)} USDT
+        <p className={`mt-1 text-2xl font-semibold ${pnlColor(m.totalPnl)}`}>
+          {pnlSign(m.totalPnl)}{m.totalPnl.toFixed(2)} USDT
         </p>
-        <p className={`mt-1 text-xs ${pnlColor(metrics.totalPnlPct)}`}>
-          {pnlSign(metrics.totalPnlPct)}{(metrics.totalPnlPct * 100).toFixed(2)}%
+        <p className={`mt-1 text-xs ${pnlColor(m.totalPnlPct)}`}>
+          {pnlSign(m.totalPnlPct)}{(m.totalPnlPct * 100).toFixed(2)}%
         </p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-warning">
         <p className="text-sm text-text-secondary">Max Drawdown</p>
-        <p className="mt-1 text-2xl font-semibold text-danger">{(metrics.maxDrawdown * 100).toFixed(2)}%</p>
+        <p className="mt-1 text-2xl font-semibold text-danger">{(m.maxDrawdown * 100).toFixed(2)}%</p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
         <p className="text-sm text-text-secondary">Profit Factor</p>
-        <p className="mt-1 text-2xl font-semibold text-text-primary">{isFinite(metrics.profitFactor) ? metrics.profitFactor.toFixed(2) : '-'}</p>
+        <p className="mt-1 text-2xl font-semibold text-text-primary">{isFinite(m.profitFactor) ? m.profitFactor.toFixed(2) : '-'}</p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
         <p className="text-sm text-text-secondary">Sharpe Ratio</p>
-        <p className="mt-1 text-2xl font-semibold text-text-primary">{isFinite(metrics.sharpeRatio) ? metrics.sharpeRatio.toFixed(2) : '-'}</p>
+        <p className="mt-1 text-2xl font-semibold text-text-primary">{isFinite(m.sharpeRatio) ? m.sharpeRatio.toFixed(2) : '-'}</p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-success">
         <p className="text-sm text-text-secondary">Mejor Trade</p>
-        <p className="mt-1 text-2xl font-semibold text-success">{pnlSign(metrics.bestTrade)}{(metrics.bestTrade * 100).toFixed(2)}%</p>
+        <p className="mt-1 text-2xl font-semibold text-success">{pnlSign(m.bestTrade)}{(m.bestTrade * 100).toFixed(2)}%</p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-danger">
         <p className="text-sm text-text-secondary">Peor Trade</p>
-        <p className="mt-1 text-2xl font-semibold text-danger">{(metrics.worstTrade * 100).toFixed(2)}%</p>
+        <p className="mt-1 text-2xl font-semibold text-danger">{(m.worstTrade * 100).toFixed(2)}%</p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
         <p className="text-sm text-text-secondary">Duracion Media</p>
-        <p className="mt-1 text-2xl font-semibold text-text-primary">{formatDuration(metrics.avgTradeDuration)}</p>
+        <p className="mt-1 text-2xl font-semibold text-text-primary">{formatDuration(m.avgTradeDuration)}</p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
         <p className="text-sm text-text-secondary">Capital Final</p>
-        <p className={`mt-1 text-2xl font-semibold ${pnlColor(metrics.finalCapital - 1000)}`}>
-          {metrics.finalCapital.toFixed(2)} USDT
+        <p className={`mt-1 text-2xl font-semibold ${pnlColor(m.finalCapital - 1000)}`}>
+          {m.finalCapital.toFixed(2)} USDT
         </p>
       </div>
     </div>
@@ -120,6 +135,7 @@ function TradesTable({ trades }: { trades: BacktestTrade[] }) {
             <th className="px-4 py-3 font-medium text-text-secondary">PnL</th>
             <th className="px-4 py-3 font-medium text-text-secondary">PnL %</th>
             <th className="px-4 py-3 font-medium text-text-secondary">Razon</th>
+            <th className="px-4 py-3 font-medium text-text-secondary">RSI</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -142,6 +158,10 @@ function TradesTable({ trades }: { trades: BacktestTrade[] }) {
                 {pnlSign(t.pnlPct)}{(t.pnlPct * 100).toFixed(2)}%
               </td>
               <td className="px-4 py-2 text-text-muted text-xs">{t.exitReason}</td>
+              <td className="px-4 py-2 text-xs text-text-muted">
+                {(t as any).entryRsi != null ? (t as any).entryRsi.toFixed(1) : '-'}
+                {(t as any).exitRsi != null ? ` → ${(t as any).exitRsi.toFixed(1)}` : ''}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -350,16 +370,16 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
             <div>
               <h3 className="mb-2 text-sm font-medium text-text-secondary">Desglose por Token</h3>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {Object.entries(result.perSymbol).map(([sym, data]) => (
+                {Object.entries(result.perSymbol).map(([sym, data]: [string, any]) => (
                   <div key={sym} className="rounded-lg border border-border bg-bg-secondary p-3">
                     <p className="text-sm font-medium text-text-primary">{sym}</p>
-                    <p className={`text-lg font-semibold ${pnlColor(data.metrics.totalPnl)}`}>
-                      {pnlSign(data.metrics.totalPnl)}{data.metrics.totalPnl.toFixed(2)} USDT
+                    <p className={`text-lg font-semibold ${pnlColor(data.metrics?.totalPnl ?? 0)}`}>
+                      {pnlSign(data.metrics?.totalPnl ?? 0)}{(data.metrics?.totalPnl ?? 0).toFixed(2)} USDT
                     </p>
                     <div className="mt-1 flex gap-3 text-xs text-text-muted">
-                      <span>{data.metrics.totalTrades} trades</span>
-                      <span>{data.metrics.winRate.toFixed(0)}% win</span>
-                      <span>{data.metrics.sharpeRatio.toFixed(2)} sharpe</span>
+                      <span>{data.metrics?.totalTrades ?? 0} trades</span>
+                      <span>{(data.metrics?.winRate ?? 0).toFixed(0)}% win</span>
+                      <span>{(data.metrics?.sharpeRatio ?? 0).toFixed(2)} sharpe</span>
                     </div>
                   </div>
                 ))}
@@ -460,7 +480,7 @@ function PastResultsTab() {
                   {pnlSign(totalPnl)}{totalPnl.toFixed(2)} USDT
                 </span>
                 <span className="text-xs text-text-secondary">
-                  {(winRate * 100).toFixed(0)}% win
+                  {winRate.toFixed(0)}% win
                 </span>
                 <span className="text-xs text-text-muted">{totalTrades} trades</span>
                 <svg
@@ -486,7 +506,7 @@ function PastResultsTab() {
                   </div>
                   <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
                     <p className="text-sm text-text-secondary">Win Rate</p>
-                    <p className="mt-1 text-2xl font-semibold text-text-primary">{(winRate * 100).toFixed(1)}%</p>
+                    <p className="mt-1 text-2xl font-semibold text-text-primary">{winRate.toFixed(1)}%</p>
                   </div>
                   <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-warning">
                     <p className="text-sm text-text-secondary">Max Drawdown</p>

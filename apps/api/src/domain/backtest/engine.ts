@@ -22,6 +22,8 @@ export interface BacktestTrade {
   investedQuote: number;
   pnl: number;
   pnlPct: number;
+  entryRsi: number | null;
+  exitRsi: number | null;
   exitReason: 'signal' | 'stop_loss' | 'take_profit' | 'trailing_stop' | 'end_of_data';
 }
 
@@ -66,7 +68,8 @@ interface OpenPosition {
   entryPrice: number;
   quantity: number;
   investedQuote: number;
-  highestPrice: number; // for trailing stop tracking
+  highestPrice: number;
+  entryRsi: number | null;
 }
 
 /**
@@ -128,6 +131,7 @@ export function runBacktest(
       );
 
       if (exitResult) {
+        exitResult.trade.exitRsi = Number.isNaN(rsiValue) ? null : Math.round(rsiValue * 100) / 100;
         trades.push(exitResult.trade);
         capital += exitResult.proceeds;
         openPosition = null;
@@ -151,6 +155,7 @@ export function runBacktest(
           const commission = investedQuote * commissionRate;
           const netInvested = investedQuote - commission;
           const quantity = netInvested / candle.close;
+          const entryRsi = Number.isNaN(rsiValue) ? null : Math.round(rsiValue * 100) / 100;
 
           openPosition = {
             entryCandleIndex: i,
@@ -159,6 +164,7 @@ export function runBacktest(
             quantity,
             investedQuote,
             highestPrice: candle.high,
+            entryRsi,
           };
         }
       }
@@ -189,6 +195,8 @@ export function runBacktest(
       investedQuote: openPosition.investedQuote,
       pnl,
       pnlPct,
+      entryRsi: openPosition.entryRsi,
+      exitRsi: null,
       exitReason: 'end_of_data',
     });
 
@@ -285,6 +293,8 @@ function buildTrade(
       investedQuote: position.investedQuote,
       pnl,
       pnlPct,
+      entryRsi: position.entryRsi,
+      exitRsi: null, // will be set by caller
       exitReason,
     },
     proceeds,

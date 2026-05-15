@@ -20,7 +20,7 @@ const STEPS = [
 type StepKey = (typeof STEPS)[number]['key'];
 
 const defaultConfig: StrategyConfig = {
-  symbols: ['BTCUSDT', 'ETHUSDT'],
+  symbols: [],
   timeframes: ['15m', '1h', '4h'],
   entry: {
     rsiBelow: 30,
@@ -291,24 +291,54 @@ function StepSymbols({
   onUpdate: <K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) => void;
   onToggleTimeframe: (tf: string) => void;
 }) {
+  const [newSymbol, setNewSymbol] = useState('');
+
+  function addSymbol() {
+    const sym = newSymbol.trim().toUpperCase();
+    if (sym && !config.symbols.includes(sym)) {
+      onUpdate('symbols', [...config.symbols, sym]);
+    }
+    setNewSymbol('');
+  }
+
+  function removeSymbol(sym: string) {
+    onUpdate('symbols', config.symbols.filter((s) => s !== sym));
+  }
+
   return (
     <div className="space-y-4">
       <h2 className="mb-3 text-sm font-medium text-text-secondary">Simbolos y Timeframes</h2>
       <div>
-        <label className={labelClass}>Simbolos (separados por coma)</label>
-        <input
-          type="text"
-          className={inputClass}
-          value={config.symbols.join(', ')}
-          onChange={(e) =>
-            onUpdate(
-              'symbols',
-              e.target.value.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
-            )
-          }
-          placeholder="BTCUSDT, ETHUSDT, SOLUSDT"
-        />
+        <label className={labelClass}>Anadir simbolo</label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            className={inputClass}
+            value={newSymbol}
+            onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSymbol(); } }}
+            placeholder="BTCUSDC"
+          />
+          <button
+            type="button"
+            onClick={addSymbol}
+            disabled={!newSymbol.trim()}
+            className="shrink-0 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+          >
+            Anadir
+          </button>
+        </div>
       </div>
+      {config.symbols.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {config.symbols.map((sym) => (
+            <span key={sym} className="inline-flex items-center gap-1 rounded-md bg-accent/15 px-2.5 py-1 text-sm font-medium text-accent">
+              {sym}
+              <button type="button" onClick={() => removeSymbol(sym)} className="ml-0.5 text-accent/60 hover:text-accent">&times;</button>
+            </span>
+          ))}
+        </div>
+      )}
       <div>
         <label className={labelClass}>Timeframes</label>
         <div className="flex flex-wrap gap-2">

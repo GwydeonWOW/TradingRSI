@@ -25,6 +25,50 @@ async function safeJsonFetch(url: string): Promise<unknown | null> {
   }
 }
 
+/**
+ * Fetch SOFR data from FRED API.
+ * Returns { sofrLevel, sofrChange5d } or nulls if unavailable.
+ */
+async function fetchSofrData(): Promise<{ sofrLevel: number | null; sofrChange5d: number | null }> {
+  const apiKey = process.env.FRED_API_KEY;
+  if (!apiKey) return { sofrLevel: null, sofrChange5d: null };
+
+  const data = await safeJsonFetch(
+    `https://api.stlouisfed.org/fred/series/observations?series_id=SOFR&api_key=${apiKey}&file_type=json&sort_order=desc&limit=6`,
+  );
+  if (!data) return { sofrLevel: null, sofrChange5d: null };
+
+  const observations = (data as { observations?: Array<{ value: string }> }).observations;
+  if (!observations || observations.length === 0) return { sofrLevel: null, sofrChange5d: null };
+
+  const latest = parseFloat(observations[0]!.value);
+  if (isNaN(latest)) return { sofrLevel: null, sofrChange5d: null };
+
+  let sofrChange5d: number | null = null;
+  if (observations.length >= 6) {
+    const fiveDaysAgo = parseFloat(observations[5]!.value);
+    if (!isNaN(fiveDaysAgo)) sofrChange5d = latest - fiveDaysAgo;
+  }
+
+  return { sofrLevel: latest, sofrChange5d };
+}
+
+/**
+ * Check stablecoin peg deviation (USDT vs USDC on Binance).
+ * If USDT/USDC deviates significantly from 1.0, peg stress is indicated.
+ */
+async function fetchStablecoinPegDeviation(): Promise<number | null> {
+  const baseUrl = getBaseUrl();
+  const data = await safeJsonFetch(`${baseUrl}/v3/ticker/price?symbol=USDTUSDC`);
+  if (!data) return null;
+
+  const price = parseFloat((data as { price?: string }).price ?? '');
+  if (isNaN(price) || price <= 0) return null;
+
+  // Deviation in basis points from 1.0 peg
+  return Math.abs(price - 1.0) * 10000;
+}
+
 export async function collectLiquidityData(
   symbol: string,
   side: 'BUY' | 'SELL',
@@ -50,6 +94,12 @@ export async function collectLiquidityData(
     safeJsonFetch(`${futuresUrl}/fapi/v1/openInterest?symbol=${symbol}`),
     safeJsonFetch(`${futuresUrl}/futures/data/globalLongShortAccountRatio?symbol=${symbol}&period=1h&limit=1`),
     safeJsonFetch(`${futuresUrl}/futures/data/takerlongshortRatio?symbol=${symbol}&period=1h&limit=1`),
+  ]);
+
+  // Macro data (SOFR + stablecoin peg) — fetched in parallel with nothing else
+  const [sofrData, pegDeviationBps] = await Promise.all([
+    fetchSofrData(),
+    fetchStablecoinPegDeviation(),
   ]);
 
   const latencyMs = Date.now() - startAll;
@@ -148,8 +198,13 @@ export async function collectLiquidityData(
     },
     fragility: { closes1m, trades: tradesData },
     apiLatencyMs: latencyMs,
+    macro: {
+      sofrLevel: sofrData.sofrLevel,
+      sofrChange5d: sofrData.sofrChange5d,
+      netUsdLiquidityChange4w: null,
+    },
     cryptoSystemic: {
-      stablecoinPegDeviationBps: null,
+      stablecoinPegDeviationBps: pegDeviationBps,
       fundingRate,
       fundingRateZScore: null,
       openInterest,

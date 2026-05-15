@@ -2,7 +2,7 @@ import { BINANCE_ENVIRONMENTS } from '@cryptorsi/shared';
 import { calculateLiquidityHealth } from '@cryptorsi/liquidity';
 import type { LiquidityInput } from '@cryptorsi/liquidity';
 import { prisma } from '../db.js';
-const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'] as const;
+const SYMBOLS = ['BTCUSDC', 'ETHUSDC', 'SOLUSDC', 'BNBUSDC'] as const;
 
 type BinanceEnv = 'demo' | 'testnet' | 'production';
 

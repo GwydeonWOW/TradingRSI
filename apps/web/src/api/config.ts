@@ -3,14 +3,17 @@ import { useState, useEffect, useCallback } from 'react';
 const STORAGE_KEY = 'cryptorsi_symbols';
 const LIQUIDITY_SYMBOLS_KEY = 'cryptorsi_liquidity_symbols';
 
-const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
+const DEFAULT_SYMBOLS: string[] = [];
 const ALL_AVAILABLE = [
+  'BTCUSDC', 'ETHUSDC', 'BNBUSDC', 'SOLUSDC', 'XRPUSDC', 'ADAUSDC',
+  'DOGEUSDC', 'DOTUSDC', 'AVAXUSDC', 'LINKUSDC', 'UNIUSDC',
+  'ATOMUSDC', 'LTCUSDC', 'NEARUSDC', 'ARBUSDC', 'OPUSDC', 'APTUSDC',
   'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT',
-  'DOGEUSDT', 'DOTUSDT', 'MATICUSDT', 'AVAXUSDT', 'LINKUSDT', 'UNIUSDT',
+  'DOGEUSDT', 'DOTUSDT', 'AVAXUSDT', 'LINKUSDT', 'UNIUSDT',
   'ATOMUSDT', 'LTCUSDT', 'NEARUSDT', 'ARBUSDT', 'OPUSDT', 'APTUSDT',
 ];
 
-const LIQUIDITY_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
+const LIQUIDITY_SYMBOLS = ['BTCUSDC', 'ETHUSDC', 'SOLUSDC', 'BNBUSDC'];
 
 export function getSymbols(): string[] {
   try {

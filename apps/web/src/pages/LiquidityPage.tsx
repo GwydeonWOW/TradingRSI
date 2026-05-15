@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { liquidityApi, type LiquidityResult } from '../api/liquidity.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 
-const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'] as const;
+const SYMBOLS = ['BTCUSDC', 'ETHUSDC', 'SOLUSDC', 'BNBUSDC'] as const;
 
 function stateColor(state: string): string {
   switch (state) {

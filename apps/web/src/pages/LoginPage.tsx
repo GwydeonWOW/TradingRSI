@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.tsx';
 
 const inputClass =
   'w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
 
 export function LoginPage() {
+  const navigate = useNavigate();
   const { login, challengeMfa } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,6 +23,8 @@ export function LoginPage() {
       const result = await login(email, password);
       if (result.requiresMfa) {
         setRequiresMfa(true);
+      } else {
+        navigate('/dashboard', { replace: true });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesion');
@@ -35,6 +39,7 @@ export function LoginPage() {
     setError(null);
     try {
       await challengeMfa(mfaCode);
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Codigo invalido');
     } finally {
