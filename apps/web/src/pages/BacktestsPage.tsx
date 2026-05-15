@@ -22,6 +22,22 @@ function formatDateTime(epoch: number): string {
   });
 }
 
+function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  if (minutes < 1440) return `${(minutes / 60).toFixed(1)}h`;
+  return `${(minutes / 1440).toFixed(1)}d`;
+}
+
+function smartPrice(price: number): string {
+  if (price === 0) return '0';
+  const abs = Math.abs(price);
+  if (abs >= 1000) return price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (abs >= 1) return price.toFixed(2);
+  if (abs >= 0.01) return price.toFixed(4);
+  if (abs >= 0.0001) return price.toFixed(6);
+  return price.toFixed(8);
+}
+
 function pnlColor(value: number): string {
   if (value > 0) return 'text-success';
   if (value < 0) return 'text-danger';
@@ -60,19 +76,29 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
         <p className="text-sm text-text-secondary">Profit Factor</p>
-        <p className="mt-1 text-2xl font-semibold text-text-primary">{metrics.profitFactor.toFixed(2)}</p>
+        <p className="mt-1 text-2xl font-semibold text-text-primary">{isFinite(metrics.profitFactor) ? metrics.profitFactor.toFixed(2) : '-'}</p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
         <p className="text-sm text-text-secondary">Sharpe Ratio</p>
-        <p className="mt-1 text-2xl font-semibold text-text-primary">{metrics.sharpeRatio.toFixed(2)}</p>
+        <p className="mt-1 text-2xl font-semibold text-text-primary">{isFinite(metrics.sharpeRatio) ? metrics.sharpeRatio.toFixed(2) : '-'}</p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-success">
         <p className="text-sm text-text-secondary">Mejor Trade</p>
-        <p className="mt-1 text-2xl font-semibold text-success">{pnlSign(metrics.bestTrade)}{metrics.bestTrade.toFixed(2)}</p>
+        <p className="mt-1 text-2xl font-semibold text-success">{pnlSign(metrics.bestTrade)}{(metrics.bestTrade * 100).toFixed(2)}%</p>
       </div>
       <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-danger">
         <p className="text-sm text-text-secondary">Peor Trade</p>
-        <p className="mt-1 text-2xl font-semibold text-danger">{metrics.worstTrade.toFixed(2)}</p>
+        <p className="mt-1 text-2xl font-semibold text-danger">{(metrics.worstTrade * 100).toFixed(2)}%</p>
+      </div>
+      <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
+        <p className="text-sm text-text-secondary">Duracion Media</p>
+        <p className="mt-1 text-2xl font-semibold text-text-primary">{formatDuration(metrics.avgTradeDuration)}</p>
+      </div>
+      <div className="rounded-lg border border-border bg-bg-secondary p-4 border-l-4 border-l-border">
+        <p className="text-sm text-text-secondary">Capital Final</p>
+        <p className={`mt-1 text-2xl font-semibold ${pnlColor(metrics.finalCapital - 1000)}`}>
+          {metrics.finalCapital.toFixed(2)} USDT
+        </p>
       </div>
     </div>
   );
@@ -90,6 +116,7 @@ function TradesTable({ trades }: { trades: BacktestTrade[] }) {
             <th className="px-4 py-3 font-medium text-text-secondary">Lado</th>
             <th className="px-4 py-3 font-medium text-text-secondary">Precio Entrada</th>
             <th className="px-4 py-3 font-medium text-text-secondary">Precio Salida</th>
+            <th className="px-4 py-3 font-medium text-text-secondary">Cantidad</th>
             <th className="px-4 py-3 font-medium text-text-secondary">PnL</th>
             <th className="px-4 py-3 font-medium text-text-secondary">PnL %</th>
             <th className="px-4 py-3 font-medium text-text-secondary">Razon</th>
@@ -105,8 +132,9 @@ function TradesTable({ trades }: { trades: BacktestTrade[] }) {
                   {t.side}
                 </span>
               </td>
-              <td className="px-4 py-2 text-text-primary">{t.entryPrice.toFixed(2)}</td>
-              <td className="px-4 py-2 text-text-primary">{t.exitPrice.toFixed(2)}</td>
+              <td className="px-4 py-2 text-text-primary font-mono">{smartPrice(t.entryPrice)}</td>
+              <td className="px-4 py-2 text-text-primary font-mono">{smartPrice(t.exitPrice)}</td>
+              <td className="px-4 py-2 text-text-primary font-mono">{smartPrice(t.quantity)}</td>
               <td className={`px-4 py-2 font-medium ${pnlColor(t.pnl)}`}>
                 {pnlSign(t.pnl)}{t.pnl.toFixed(2)}
               </td>
@@ -124,7 +152,6 @@ function TradesTable({ trades }: { trades: BacktestTrade[] }) {
 
 function EquityCurveTable({ curve }: { curve: BacktestResult['equityCurve'] }) {
   if (curve.length === 0) return null;
-  // Sample at most 20 evenly spaced points for readability
   const step = Math.max(1, Math.floor(curve.length / 20));
   const sampled = curve.filter((_, i) => i % step === 0 || i === curve.length - 1);
   return (
@@ -169,8 +196,9 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const [strategyId, setStrategyId] = useState(preselectedStrategyId ?? '');
-  const [symbol, setSymbol] = useState('BTCUSDT');
-  const [interval, setInterval] = useState('1h');
+  const [symbol, setSymbol] = useState('');
+  const [strategySymbols, setStrategySymbols] = useState<string[]>([]);
+  const [interval, setInterval_] = useState('1h');
   const [startDate, setStartDate] = useState(formatDateInput(thirtyDaysAgo));
   const [endDate, setEndDate] = useState(formatDateInput(now));
   const [initialCapital, setInitialCapital] = useState('1000');
@@ -180,13 +208,36 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
     fetchStrategies();
   }, []);
 
+  // When strategy changes, populate symbols
+  useEffect(() => {
+    const selected = strategies.find((s) => s.id === strategyId);
+    if (selected && selected.symbols.length > 0) {
+      setStrategySymbols(selected.symbols);
+      if (!selected.symbols.includes(symbol)) {
+        setSymbol(selected.symbols[0]!);
+      }
+    } else {
+      setStrategySymbols([]);
+    }
+  }, [strategyId, strategies]);
+
   async function fetchStrategies() {
     setFetchingStrategies(true);
     try {
       const res = await strategiesApi.list();
       setStrategies(res.data);
+      // Auto-select first strategy if preselected
+      if (preselectedStrategyId) {
+        const s = res.data.find((s) => s.id === preselectedStrategyId);
+        if (s && s.symbols.length > 0) {
+          setStrategySymbols(s.symbols);
+          setSymbol(s.symbols[0]!);
+        }
+      } else if (res.data.length > 0) {
+        setStrategyId(res.data[0]!.id);
+      }
     } catch {
-      // Silently fail - strategy selector will be empty
+      // Silently fail
     } finally {
       setFetchingStrategies(false);
     }
@@ -218,6 +269,8 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
   const inputClass = 'w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none';
   const labelClass = 'mb-1 block text-xs font-medium text-text-secondary';
 
+  const availableSymbols = strategySymbols.length > 0 ? strategySymbols : ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
+
   return (
     <div className="space-y-6">
       {/* Form */}
@@ -239,12 +292,24 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
             </select>
           </div>
           <div>
-            <label className={labelClass}>Simbolo</label>
-            <input type="text" value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} className={inputClass} />
+            <label className={labelClass}>Simbolo {strategySymbols.length > 0 && <span className="text-text-muted">(de la estrategia)</span>}</label>
+            {strategySymbols.length > 1 ? (
+              <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className={inputClass}>
+                {availableSymbols.map((sym) => (
+                  <option key={sym} value={sym}>{sym}</option>
+                ))}
+              </select>
+            ) : (
+              <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className={inputClass}>
+                {availableSymbols.map((sym) => (
+                  <option key={sym} value={sym}>{sym}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
             <label className={labelClass}>Intervalo</label>
-            <select value={interval} onChange={(e) => setInterval(e.target.value)} className={inputClass}>
+            <select value={interval} onChange={(e) => setInterval_(e.target.value)} className={inputClass}>
               {INTERVALS.map((iv) => (
                 <option key={iv} value={iv}>{iv}</option>
               ))}
@@ -290,16 +355,8 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
       {/* Results */}
       {result && (
         <div className="space-y-6">
-          <h2 className="text-sm font-medium text-text-secondary">Resultados</h2>
+          <h2 className="text-sm font-medium text-text-secondary">Resultados ({result.trades.length} trades, {result.equityCurve.length} puntos curva)</h2>
           <MetricsGrid metrics={result.metrics} />
-
-          {/* Final capital */}
-          <div className="rounded-lg border border-border bg-bg-secondary p-4">
-            <p className="text-sm text-text-secondary">Capital Final</p>
-            <p className={`mt-1 text-xl font-semibold ${pnlColor(result.metrics.finalCapital - (parseFloat(initialCapital) || 1000))}`}>
-              {result.metrics.finalCapital.toFixed(2)} USDT
-            </p>
-          </div>
 
           {/* Equity curve */}
           <div>

@@ -27,8 +27,8 @@ export async function liquidityRoutes(app: FastifyInstance) {
       const { input, latencyMs } = await collectLiquidityData(symbol, side, quoteAmount);
       const result = calculateLiquidityHealth(input);
 
-      // Save snapshot
-      await prisma.liquiditySnapshot.create({
+      // Save snapshot (non-blocking — don't fail the request if DB is down)
+      prisma.liquiditySnapshot.create({
         data: {
           symbol,
           environment: process.env.BINANCE_ENV ?? 'demo',
@@ -47,6 +47,8 @@ export async function liquidityRoutes(app: FastifyInstance) {
           apiLatencyMs: latencyMs,
           reasons: result.reasons as any,
         },
+      }).catch((err) => {
+        logger.warn({ err }, 'Failed to save liquidity snapshot (non-critical)');
       });
 
       return reply.code(200).send({

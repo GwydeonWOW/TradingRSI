@@ -276,6 +276,18 @@ export async function authRoutes(app: FastifyInstance) {
     }
   });
 
+  // GET /api/auth/needs-setup — check if initial setup is needed
+  app.get('/api/auth/needs-setup', async (_request, reply) => {
+    try {
+      const userCount = await prisma.user.count();
+      return reply.code(200).send({ success: true, data: { needsSetup: userCount === 0 } });
+    } catch (err) {
+      logger.error(err, 'Needs setup check failed');
+      // If DB is unreachable, don't block — return false
+      return reply.code(200).send({ success: true, data: { needsSetup: false } });
+    }
+  });
+
   // POST /api/auth/seed-admin
   app.post('/api/auth/seed-admin', async (_request, reply) => {
     try {

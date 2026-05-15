@@ -7,14 +7,31 @@ import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 
 const TIMEFRAME_OPTIONS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'] as const;
 
+const STEPS = [
+  { key: 'general', label: 'General' },
+  { key: 'symbols', label: 'Simbolos y Timeframes' },
+  { key: 'entry', label: 'Reglas de Entrada' },
+  { key: 'exit', label: 'Reglas de Salida' },
+  { key: 'risk', label: 'Riesgo y Capital' },
+  { key: 'execution', label: 'Ejecucion' },
+  { key: 'summary', label: 'Resumen' },
+] as const;
+
+type StepKey = (typeof STEPS)[number]['key'];
+
 const defaultConfig: StrategyConfig = {
   symbols: ['BTCUSDT', 'ETHUSDT'],
   timeframes: ['15m', '1h', '4h'],
   entry: {
     rsiBelow: 30,
+    rsiAbove: undefined,
+    rsiPeriod: 14,
+    useRsiDivergence: false,
     requireMultiTimeframeConfirmation: true,
     useSmaFilter: true,
     smaPeriod: 200,
+    useVolumeConfirmation: false,
+    volumeMultiplier: 1.5,
     cooldownMinutes: 360,
   },
   exit: {
@@ -41,7 +58,6 @@ const defaultConfig: StrategyConfig = {
 const inputClass =
   'w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
 const labelClass = 'mb-1 block text-sm font-medium text-text-secondary';
-const sectionTitle = 'mb-3 text-sm font-medium text-text-secondary';
 
 export function StrategyEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,6 +66,9 @@ export function StrategyEditorPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [config, setConfig] = useState<StrategyConfig>(defaultConfig);
+  const [strategyName, setStrategyName] = useState('');
+  const [strategyDescription, setStrategyDescription] = useState('');
+  const [currentStep, setCurrentStep] = useState<StepKey>('general');
 
   useEffect(() => {
     if (!id) return;
@@ -61,6 +80,8 @@ export function StrategyEditorPage() {
     try {
       const result = await strategiesApi.get(id!);
       const s: StrategyDetail = result.data;
+      setStrategyName(s.name);
+      setStrategyDescription(s.description ?? '');
       if (s.versions.length > 0) {
         const latestVersion = s.versions[s.versions.length - 1]!;
         const versionRes = await strategiesApi.getVersion(id!, latestVersion.id);
@@ -98,6 +119,17 @@ export function StrategyEditorPage() {
     }
   }
 
+  const stepIndex = STEPS.findIndex((s) => s.key === currentStep);
+  const isFirst = stepIndex === 0;
+  const isLast = stepIndex === STEPS.length - 1;
+
+  function goNext() {
+    if (!isLast) setCurrentStep(STEPS[stepIndex + 1]!.key);
+  }
+  function goPrev() {
+    if (!isFirst) setCurrentStep(STEPS[stepIndex - 1]!.key);
+  }
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -110,7 +142,7 @@ export function StrategyEditorPage() {
         &larr; Volver a la estrategia
       </button>
 
-      <h1 className="mb-6 text-xl font-bold text-text-primary">Editar Estrategia</h1>
+      <h1 className="mb-6 text-xl font-bold text-text-primary">Editar Estrategia: {strategyName}</h1>
 
       {error && (
         <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
@@ -118,271 +150,557 @@ export function StrategyEditorPage() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Left column */}
-        <div className="space-y-6">
-          <div className="rounded-lg border border-border bg-bg-secondary p-6">
-            <h2 className={sectionTitle}>Simbolos y Timeframes</h2>
-            <div className="space-y-4">
-              <div>
-                <label className={labelClass}>Simbolos (separados por coma)</label>
-                <input
-                  type="text"
-                  className={inputClass}
-                  value={config.symbols.join(', ')}
-                  onChange={(e) =>
-                    updateConfig(
-                      'symbols',
-                      e.target.value.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
-                    )
-                  }
-                  placeholder="BTCUSDT, ETHUSDT, SOLUSDT"
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Timeframes</label>
-                <div className="flex flex-wrap gap-2">
-                  {TIMEFRAME_OPTIONS.map((tf) => (
-                    <button
-                      key={tf}
-                      type="button"
-                      onClick={() => toggleTimeframe(tf)}
-                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                        config.timeframes.includes(tf)
-                          ? 'bg-accent text-white'
-                          : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
-                      }`}
-                    >
-                      {tf}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* Step tabs */}
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-border pb-px">
+        {STEPS.map((step, i) => (
+          <button
+            key={step.key}
+            type="button"
+            onClick={() => setCurrentStep(step.key)}
+            className={`shrink-0 rounded-t-md px-4 py-2 text-sm font-medium transition-colors ${
+              currentStep === step.key
+                ? 'border border-b-0 border-border bg-bg-secondary text-accent'
+                : i < stepIndex
+                  ? 'text-success hover:text-text-primary'
+                  : 'text-text-muted hover:text-text-primary'
+            }`}
+          >
+            <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs ${
+              currentStep === step.key ? 'bg-accent text-white' : i < stepIndex ? 'bg-success/20 text-success' : 'bg-bg-tertiary text-text-muted'
+            }">
+              {i + 1}
+            </span>
+            {step.label}
+          </button>
+        ))}
+      </div>
 
-          <div className="rounded-lg border border-border bg-bg-secondary p-6">
-            <h2 className={sectionTitle}>Gestion de Riesgo</h2>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Cantidad por trade (USDT)</label>
-                  <input
-                    type="number" min={1} step={1} className={inputClass}
-                    value={config.risk.quoteAmountPerTrade}
-                    onChange={(e) => updateConfig('risk', { ...config.risk, quoteAmountPerTrade: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Max posiciones abiertas</label>
-                  <input
-                    type="number" min={1} className={inputClass}
-                    value={config.risk.maxOpenPositions}
-                    onChange={(e) => updateConfig('risk', { ...config.risk, maxOpenPositions: Number(e.target.value) })}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Max por simbolo</label>
-                  <input
-                    type="number" min={1} className={inputClass}
-                    value={config.risk.maxPositionsPerSymbol}
-                    onChange={(e) => updateConfig('risk', { ...config.risk, maxPositionsPerSymbol: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Exposicion max (USDT)</label>
-                  <input
-                    type="number" min={1} className={inputClass}
-                    value={config.risk.maxTotalExposureQuote}
-                    onChange={(e) => updateConfig('risk', { ...config.risk, maxTotalExposureQuote: Number(e.target.value) })}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Perdida diaria max (%)</label>
-                  <input
-                    type="number" min={0} max={100} step={0.5} className={inputClass}
-                    value={config.risk.maxDailyLossPct}
-                    onChange={(e) => updateConfig('risk', { ...config.risk, maxDailyLossPct: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Cooldown (min)</label>
-                  <input
-                    type="number" min={0} className={inputClass}
-                    value={config.risk.cooldownMinutes}
-                    onChange={(e) => updateConfig('risk', { ...config.risk, cooldownMinutes: Number(e.target.value) })}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* Step content */}
+      <div className="rounded-lg border border-border bg-bg-secondary p-6">
+        {currentStep === 'general' && (
+          <StepGeneral
+            name={strategyName}
+            description={strategyDescription}
+            onNameChange={setStrategyName}
+            onDescriptionChange={setStrategyDescription}
+          />
+        )}
+        {currentStep === 'symbols' && (
+          <StepSymbols config={config} onUpdate={updateConfig} onToggleTimeframe={toggleTimeframe} />
+        )}
+        {currentStep === 'entry' && (
+          <StepEntry config={config} onUpdate={updateConfig} />
+        )}
+        {currentStep === 'exit' && (
+          <StepExit config={config} onUpdate={updateConfig} />
+        )}
+        {currentStep === 'risk' && (
+          <StepRisk config={config} onUpdate={updateConfig} />
+        )}
+        {currentStep === 'execution' && (
+          <StepExecution config={config} onUpdate={updateConfig} />
+        )}
+        {currentStep === 'summary' && (
+          <StepSummary config={config} name={strategyName} description={strategyDescription} />
+        )}
+      </div>
+
+      {/* Navigation */}
+      <div className="mt-4 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={goPrev}
+          disabled={isFirst}
+          className="rounded-md bg-bg-tertiary px-4 py-2 text-sm font-medium text-text-secondary hover:bg-bg-hover disabled:opacity-40"
+        >
+          &larr; Anterior
+        </button>
+        <div className="flex gap-3">
+          <span className="self-center text-xs text-text-muted">
+            Paso {stepIndex + 1} de {STEPS.length}
+          </span>
         </div>
+        {isLast ? (
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+          >
+            {saving ? 'Guardando...' : 'Guardar Cambios'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={goNext}
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+          >
+            Siguiente &rarr;
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
-        {/* Right column */}
-        <div className="space-y-6">
-          <div className="rounded-lg border border-border bg-bg-secondary p-6">
-            <h2 className={sectionTitle}>Entrada</h2>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>RSI entrada (below)</label>
-                  <input
-                    type="number" min={0} max={100} className={inputClass}
-                    value={config.entry.rsiBelow}
-                    onChange={(e) => updateConfig('entry', { ...config.entry, rsiBelow: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Cooldown entrada (min)</label>
-                  <input
-                    type="number" min={0} className={inputClass}
-                    value={config.entry.cooldownMinutes}
-                    onChange={(e) => updateConfig('entry', { ...config.entry, cooldownMinutes: Number(e.target.value) })}
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2 text-sm text-text-primary">
-                  <input
-                    type="checkbox"
-                    checked={config.entry.useSmaFilter}
-                    onChange={(e) => updateConfig('entry', { ...config.entry, useSmaFilter: e.target.checked })}
-                    className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
-                  />
-                  Filtro SMA
-                </label>
-                <label className="flex items-center gap-2 text-sm text-text-primary">
-                  <input
-                    type="checkbox"
-                    checked={config.entry.requireMultiTimeframeConfirmation}
-                    onChange={(e) => updateConfig('entry', { ...config.entry, requireMultiTimeframeConfirmation: e.target.checked })}
-                    className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
-                  />
-                  Confirmacion multi-timeframe
-                </label>
-              </div>
-              {config.entry.useSmaFilter && (
-                <div>
-                  <label className={labelClass}>Periodo SMA</label>
-                  <input
-                    type="number" min={1} className={inputClass}
-                    value={config.entry.smaPeriod}
-                    onChange={(e) => updateConfig('entry', { ...config.entry, smaPeriod: Number(e.target.value) })}
-                  />
-                </div>
-              )}
-            </div>
+/* ---- Step Components ---- */
+
+function StepGeneral({
+  name,
+  description,
+  onNameChange,
+  onDescriptionChange,
+}: {
+  name: string;
+  description: string;
+  onNameChange: (v: string) => void;
+  onDescriptionChange: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <h2 className="mb-3 text-sm font-medium text-text-secondary">Datos Generales</h2>
+      <div>
+        <label className={labelClass}>Nombre</label>
+        <input
+          type="text"
+          className={inputClass}
+          value={name}
+          onChange={(e) => onNameChange(e.target.value)}
+          placeholder="Mi estrategia RSI"
+        />
+      </div>
+      <div>
+        <label className={labelClass}>Descripcion</label>
+        <textarea
+          className={`${inputClass} min-h-[80px] resize-y`}
+          value={description}
+          onChange={(e) => onDescriptionChange(e.target.value)}
+          placeholder="Descripcion opcional..."
+        />
+      </div>
+    </div>
+  );
+}
+
+function StepSymbols({
+  config,
+  onUpdate,
+  onToggleTimeframe,
+}: {
+  config: StrategyConfig;
+  onUpdate: <K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) => void;
+  onToggleTimeframe: (tf: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <h2 className="mb-3 text-sm font-medium text-text-secondary">Simbolos y Timeframes</h2>
+      <div>
+        <label className={labelClass}>Simbolos (separados por coma)</label>
+        <input
+          type="text"
+          className={inputClass}
+          value={config.symbols.join(', ')}
+          onChange={(e) =>
+            onUpdate(
+              'symbols',
+              e.target.value.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
+            )
+          }
+          placeholder="BTCUSDT, ETHUSDT, SOLUSDT"
+        />
+      </div>
+      <div>
+        <label className={labelClass}>Timeframes</label>
+        <div className="flex flex-wrap gap-2">
+          {TIMEFRAME_OPTIONS.map((tf) => (
+            <button
+              key={tf}
+              type="button"
+              onClick={() => onToggleTimeframe(tf)}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                config.timeframes.includes(tf)
+                  ? 'bg-accent text-white'
+                  : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+              }`}
+            >
+              {tf}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepEntry({
+  config,
+  onUpdate,
+}: {
+  config: StrategyConfig;
+  onUpdate: <K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) => void;
+}) {
+  const entry = config.entry as unknown as Record<string, unknown>;
+  return (
+    <div className="space-y-4">
+      <h2 className="mb-3 text-sm font-medium text-text-secondary">Reglas de Entrada</h2>
+
+      {/* RSI Configuration */}
+      <div className="rounded-md border border-border bg-bg-primary p-3">
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-accent">RSI</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className={labelClass}>Periodo RSI</label>
+            <input
+              type="number" min={2} max={100} className={inputClass}
+              value={(entry.rsiPeriod as number) ?? 14}
+              onChange={(e) => onUpdate('entry', { ...config.entry, rsiPeriod: Number(e.target.value) } as any)}
+            />
           </div>
-
-          <div className="rounded-lg border border-border bg-bg-secondary p-6">
-            <h2 className={sectionTitle}>Salida</h2>
-            <div className="space-y-4">
-              <div>
-                <label className={labelClass}>RSI salida (above)</label>
-                <input
-                  type="number" min={0} max={100} className={inputClass}
-                  value={config.exit.rsiAbove}
-                  onChange={(e) => updateConfig('exit', { ...config.exit, rsiAbove: Number(e.target.value) })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Take Profit (%)</label>
-                  <input
-                    type="number" step={0.1} min={0} className={inputClass}
-                    value={config.exit.takeProfitPct}
-                    onChange={(e) => updateConfig('exit', { ...config.exit, takeProfitPct: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Stop Loss (%)</label>
-                  <input
-                    type="number" step={0.1} min={0} className={inputClass}
-                    value={config.exit.stopLossPct}
-                    onChange={(e) => updateConfig('exit', { ...config.exit, stopLossPct: Number(e.target.value) })}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Trailing Stop (%) — dejar vacio para desactivar</label>
-                <input
-                  type="number" step={0.1} min={0} className={inputClass}
-                  value={config.exit.trailingStopPct ?? ''}
-                  onChange={(e) =>
-                    updateConfig('exit', {
-                      ...config.exit,
-                      trailingStopPct: e.target.value ? Number(e.target.value) : null,
-                    })
-                  }
-                  placeholder="Desactivado"
-                />
-              </div>
-            </div>
+          <div>
+            <label className={labelClass}>RSI Below (sobreventa)</label>
+            <input
+              type="number" min={0} max={100} className={inputClass}
+              value={config.entry.rsiBelow}
+              onChange={(e) => onUpdate('entry', { ...config.entry, rsiBelow: Number(e.target.value) })}
+            />
           </div>
-
-          <div className="rounded-lg border border-border bg-bg-secondary p-6">
-            <h2 className={sectionTitle}>Ejecucion</h2>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Tipo de orden</label>
-                  <select className={inputClass} value={config.execution.orderType} disabled>
-                    <option value="MARKET">MARKET</option>
-                  </select>
-                </div>
-                <div className="flex flex-col justify-end">
-                  <label className="flex items-center gap-2 text-sm text-text-primary">
-                    <input
-                      type="checkbox"
-                      checked={config.execution.useOrderTestBeforeRealOrder}
-                      onChange={(e) => updateConfig('execution', { ...config.execution, useOrderTestBeforeRealOrder: e.target.checked })}
-                      className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
-                    />
-                    Test antes de orden real
-                  </label>
-                </div>
-              </div>
-              <label className="flex items-center gap-2 text-sm text-text-primary">
-                <input
-                  type="checkbox"
-                  checked={config.execution.dryRun}
-                  onChange={(e) => updateConfig('execution', { ...config.execution, dryRun: e.target.checked })}
-                  className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
-                />
-                Dry Run (simulacion)
-              </label>
-              {!config.execution.dryRun && (
-                <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
-                  ATENCION: Las ordenes se ejecutaran con dinero real
-                </div>
-              )}
-            </div>
+          <div>
+            <label className={labelClass}>RSI Above (sobrecompra) — opcional</label>
+            <input
+              type="number" min={0} max={100} className={inputClass}
+              value={(entry.rsiAbove as number) ?? ''}
+              onChange={(e) => onUpdate('entry', { ...config.entry, rsiAbove: e.target.value ? Number(e.target.value) : undefined } as any)}
+              placeholder="No usar"
+            />
           </div>
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="mt-6 flex justify-end gap-3">
-        <button
-          type="button"
-          onClick={() => navigate(`/strategies/${id}`)}
-          className="rounded-md bg-bg-tertiary px-4 py-2 text-sm font-medium text-text-secondary hover:bg-bg-hover"
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {saving ? 'Guardando...' : 'Guardar Cambios'}
-        </button>
+      {/* Condiciones Combinatorias */}
+      <div className="rounded-md border border-border bg-bg-primary p-3">
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-accent">Condiciones Combinatorias</h3>
+        <p className="mb-3 text-xs text-text-muted">
+          Activa las condiciones adicionales que deben cumplirse junto con RSI para generar una entrada.
+        </p>
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm text-text-primary">
+            <input
+              type="checkbox"
+              checked={config.entry.requireMultiTimeframeConfirmation}
+              onChange={(e) => onUpdate('entry', { ...config.entry, requireMultiTimeframeConfirmation: e.target.checked })}
+              className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
+            />
+            Confirmacion multi-timeframe
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-text-primary">
+            <input
+              type="checkbox"
+              checked={config.entry.useSmaFilter}
+              onChange={(e) => onUpdate('entry', { ...config.entry, useSmaFilter: e.target.checked })}
+              className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
+            />
+            Filtro SMA (precio por encima de SMA)
+          </label>
+          {config.entry.useSmaFilter && (
+            <div className="pl-6">
+              <label className={labelClass}>Periodo SMA</label>
+              <input
+                type="number" min={1} className={inputClass}
+                value={config.entry.smaPeriod}
+                onChange={(e) => onUpdate('entry', { ...config.entry, smaPeriod: Number(e.target.value) })}
+              />
+            </div>
+          )}
+
+          <label className="flex items-center gap-2 text-sm text-text-primary">
+            <input
+              type="checkbox"
+              checked={(entry.useRsiDivergence as boolean) ?? false}
+              onChange={(e) => onUpdate('entry', { ...config.entry, useRsiDivergence: e.target.checked } as any)}
+              className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
+            />
+            Confirmacion por divergencia RSI
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-text-primary">
+            <input
+              type="checkbox"
+              checked={(entry.useVolumeConfirmation as boolean) ?? false}
+              onChange={(e) => onUpdate('entry', { ...config.entry, useVolumeConfirmation: e.target.checked } as any)}
+              className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
+            />
+            Confirmacion por volumen (multiplicador vs media)
+          </label>
+          {(entry.useVolumeConfirmation as boolean) && (
+            <div className="pl-6">
+              <label className={labelClass}>Multiplicador de volumen</label>
+              <input
+                type="number" min={1} step={0.1} className={inputClass}
+                value={(entry.volumeMultiplier as number) ?? 1.5}
+                onChange={(e) => onUpdate('entry', { ...config.entry, volumeMultiplier: Number(e.target.value) } as any)}
+              />
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Cooldown */}
+      <div>
+        <label className={labelClass}>Cooldown entrada (min)</label>
+        <input
+          type="number" min={0} className={inputClass}
+          value={config.entry.cooldownMinutes}
+          onChange={(e) => onUpdate('entry', { ...config.entry, cooldownMinutes: Number(e.target.value) })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function StepExit({
+  config,
+  onUpdate,
+}: {
+  config: StrategyConfig;
+  onUpdate: <K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <h2 className="mb-3 text-sm font-medium text-text-secondary">Reglas de Salida</h2>
+      <div>
+        <label className={labelClass}>RSI salida (above)</label>
+        <input
+          type="number" min={0} max={100} className={inputClass}
+          value={config.exit.rsiAbove}
+          onChange={(e) => onUpdate('exit', { ...config.exit, rsiAbove: Number(e.target.value) })}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Take Profit (%)</label>
+          <input
+            type="number" step={0.1} min={0} className={inputClass}
+            value={config.exit.takeProfitPct}
+            onChange={(e) => onUpdate('exit', { ...config.exit, takeProfitPct: Number(e.target.value) })}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Stop Loss (%)</label>
+          <input
+            type="number" step={0.1} min={0} className={inputClass}
+            value={config.exit.stopLossPct}
+            onChange={(e) => onUpdate('exit', { ...config.exit, stopLossPct: Number(e.target.value) })}
+          />
+        </div>
+      </div>
+      <div>
+        <label className={labelClass}>Trailing Stop (%) — dejar vacio para desactivar</label>
+        <input
+          type="number" step={0.1} min={0} className={inputClass}
+          value={config.exit.trailingStopPct ?? ''}
+          onChange={(e) =>
+            onUpdate('exit', {
+              ...config.exit,
+              trailingStopPct: e.target.value ? Number(e.target.value) : null,
+            })
+          }
+          placeholder="Desactivado"
+        />
+      </div>
+    </div>
+  );
+}
+
+function StepRisk({
+  config,
+  onUpdate,
+}: {
+  config: StrategyConfig;
+  onUpdate: <K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <h2 className="mb-3 text-sm font-medium text-text-secondary">Riesgo y Capital</h2>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Cantidad por trade (USDT)</label>
+          <input
+            type="number" min={1} step={1} className={inputClass}
+            value={config.risk.quoteAmountPerTrade}
+            onChange={(e) => onUpdate('risk', { ...config.risk, quoteAmountPerTrade: Number(e.target.value) })}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Max posiciones abiertas</label>
+          <input
+            type="number" min={1} className={inputClass}
+            value={config.risk.maxOpenPositions}
+            onChange={(e) => onUpdate('risk', { ...config.risk, maxOpenPositions: Number(e.target.value) })}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Max por simbolo</label>
+          <input
+            type="number" min={1} className={inputClass}
+            value={config.risk.maxPositionsPerSymbol}
+            onChange={(e) => onUpdate('risk', { ...config.risk, maxPositionsPerSymbol: Number(e.target.value) })}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Exposicion max (USDT)</label>
+          <input
+            type="number" min={1} className={inputClass}
+            value={config.risk.maxTotalExposureQuote}
+            onChange={(e) => onUpdate('risk', { ...config.risk, maxTotalExposureQuote: Number(e.target.value) })}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Perdida diaria max (%)</label>
+          <input
+            type="number" min={0} max={100} step={0.5} className={inputClass}
+            value={config.risk.maxDailyLossPct}
+            onChange={(e) => onUpdate('risk', { ...config.risk, maxDailyLossPct: Number(e.target.value) })}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Cooldown (min)</label>
+          <input
+            type="number" min={0} className={inputClass}
+            value={config.risk.cooldownMinutes}
+            onChange={(e) => onUpdate('risk', { ...config.risk, cooldownMinutes: Number(e.target.value) })}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepExecution({
+  config,
+  onUpdate,
+}: {
+  config: StrategyConfig;
+  onUpdate: <K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <h2 className="mb-3 text-sm font-medium text-text-secondary">Ejecucion</h2>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Tipo de orden</label>
+          <select className={inputClass} value={config.execution.orderType} disabled>
+            <option value="MARKET">MARKET</option>
+          </select>
+        </div>
+        <div className="flex flex-col justify-end">
+          <label className="flex items-center gap-2 text-sm text-text-primary">
+            <input
+              type="checkbox"
+              checked={config.execution.useOrderTestBeforeRealOrder}
+              onChange={(e) => onUpdate('execution', { ...config.execution, useOrderTestBeforeRealOrder: e.target.checked })}
+              className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
+            />
+            Test antes de orden real
+          </label>
+        </div>
+      </div>
+      <label className="flex items-center gap-2 text-sm text-text-primary">
+        <input
+          type="checkbox"
+          checked={config.execution.dryRun}
+          onChange={(e) => onUpdate('execution', { ...config.execution, dryRun: e.target.checked })}
+          className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
+        />
+        Dry Run (simulacion)
+      </label>
+      {!config.execution.dryRun && (
+        <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+          ATENCION: Las ordenes se ejecutaran con dinero real
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StepSummary({
+  config,
+  name,
+  description,
+}: {
+  config: StrategyConfig;
+  name: string;
+  description: string;
+}) {
+  return (
+    <div className="space-y-4">
+      <h2 className="mb-3 text-sm font-medium text-text-secondary">Resumen de Configuracion</h2>
+
+      <div className="space-y-3">
+        <SummarySection title="General">
+          <SummaryRow label="Nombre" value={name} />
+          {description && <SummaryRow label="Descripcion" value={description} />}
+        </SummarySection>
+
+        <SummarySection title="Simbolos y Timeframes">
+          <SummaryRow label="Simbolos" value={config.symbols.join(', ')} />
+          <SummaryRow label="Timeframes" value={config.timeframes.join(', ')} />
+        </SummarySection>
+
+        <SummarySection title="Reglas de Entrada">
+          <SummaryRow label="RSI Periodo" value={String((config.entry as unknown as Record<string, unknown>).rsiPeriod ?? 14)} />
+          <SummaryRow label="RSI Below" value={String(config.entry.rsiBelow)} />
+          <SummaryRow label="RSI Above" value={String((config.entry as unknown as Record<string, unknown>).rsiAbove ?? 'No')} />
+          <SummaryRow label="Divergencia RSI" value={((config.entry as unknown as Record<string, unknown>).useRsiDivergence as boolean) ? 'Si' : 'No'} />
+          <SummaryRow label="SMA Filter" value={config.entry.useSmaFilter ? `Si (${config.entry.smaPeriod})` : 'No'} />
+          <SummaryRow label="Multi-TF Confirm" value={config.entry.requireMultiTimeframeConfirmation ? 'Si' : 'No'} />
+          <SummaryRow label="Vol. Confirmacion" value={((config.entry as unknown as Record<string, unknown>).useVolumeConfirmation as boolean) ? `Si (${(config.entry as unknown as Record<string, unknown>).volumeMultiplier ?? 1.5}x)` : 'No'} />
+          <SummaryRow label="Cooldown" value={`${config.entry.cooldownMinutes} min`} />
+        </SummarySection>
+
+        <SummarySection title="Reglas de Salida">
+          <SummaryRow label="RSI Above" value={String(config.exit.rsiAbove)} />
+          <SummaryRow label="Take Profit" value={`${config.exit.takeProfitPct}%`} />
+          <SummaryRow label="Stop Loss" value={`${config.exit.stopLossPct}%`} />
+          <SummaryRow label="Trailing Stop" value={config.exit.trailingStopPct != null ? `${config.exit.trailingStopPct}%` : 'Desactivado'} />
+        </SummarySection>
+
+        <SummarySection title="Riesgo y Capital">
+          <SummaryRow label="Cantidad por trade" value={`${config.risk.quoteAmountPerTrade} USDT`} />
+          <SummaryRow label="Max posiciones" value={String(config.risk.maxOpenPositions)} />
+          <SummaryRow label="Max por simbolo" value={String(config.risk.maxPositionsPerSymbol)} />
+          <SummaryRow label="Exposicion max" value={`${config.risk.maxTotalExposureQuote} USDT`} />
+          <SummaryRow label="Perdida diaria max" value={`${config.risk.maxDailyLossPct}%`} />
+        </SummarySection>
+
+        <SummarySection title="Ejecucion">
+          <SummaryRow label="Tipo de orden" value={config.execution.orderType} />
+          <SummaryRow label="Test antes de real" value={config.execution.useOrderTestBeforeRealOrder ? 'Si' : 'No'} />
+          <SummaryRow label="Dry Run" value={config.execution.dryRun ? 'Si (simulacion)' : 'No (real)'} />
+        </SummarySection>
+      </div>
+    </div>
+  );
+}
+
+function SummarySection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-border bg-bg-primary p-3">
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-accent">{title}</h3>
+      <div className="space-y-1">{children}</div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between text-sm">
+      <span className="text-text-muted">{label}</span>
+      <span className="font-medium text-text-primary">{value}</span>
     </div>
   );
 }

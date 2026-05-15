@@ -20,9 +20,14 @@ export interface StrategyConfig {
 
 export interface EntryConfig {
   rsiBelow: number;
+  rsiAbove?: number;
+  rsiPeriod?: number;
+  useRsiDivergence?: boolean;
   requireMultiTimeframeConfirmation: boolean;
   useSmaFilter: boolean;
   smaPeriod: number;
+  useVolumeConfirmation?: boolean;
+  volumeMultiplier?: number;
   cooldownMinutes: number;
 }
 

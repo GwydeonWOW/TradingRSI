@@ -10,9 +10,14 @@ const defaultConfig: StrategyConfig = {
   timeframes: ['15m', '1h', '4h'],
   entry: {
     rsiBelow: 30,
+    rsiAbove: undefined,
+    rsiPeriod: 14,
+    useRsiDivergence: false,
     requireMultiTimeframeConfirmation: true,
     useSmaFilter: true,
     smaPeriod: 200,
+    useVolumeConfirmation: false,
+    volumeMultiplier: 1.5,
     cooldownMinutes: 360,
   },
   exit: {

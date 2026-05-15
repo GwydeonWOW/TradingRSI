@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { tradingApi } from '../api/trading.ts';
 import { liquidityApi } from '../api/liquidity.ts';
 import { getSymbols } from '../api/config.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { CandlestickChart, type CandleData } from '../components/CandlestickChart.tsx';
+import { detectRSIDivergence } from '../utils/rsiDivergence.ts';
 
 const TIMEFRAMES = [
   { value: '1m', label: '1m' },
@@ -51,6 +52,7 @@ export function MarketPage() {
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1h');
   const [chartData, setChartData] = useState<CandleData[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
+  const [showDivergence, setShowDivergence] = useState(true);
 
   // Initialize prices from symbols
   useEffect(() => {
@@ -161,6 +163,13 @@ export function MarketPage() {
     const interval = setInterval(fetchPrices, 30000);
     return () => clearInterval(interval);
   }, [fetchPrices]);
+
+  const divergenceMarkers = useMemo(() => {
+    if (!showDivergence || chartData.length < 30) return undefined;
+    const times = chartData.map((d) => d.time);
+    const closes = chartData.map((d) => d.close);
+    return detectRSIDivergence(times, closes);
+  }, [chartData, showDivergence]);
 
   if (loading) {
     return (
@@ -316,6 +325,19 @@ export function MarketPage() {
                     </button>
                   ))}
                 </div>
+                <div className="ml-2 border-l border-border pl-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowDivergence(!showDivergence)}
+                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                      showDivergence
+                        ? 'bg-warning/20 text-warning'
+                        : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                    }`}
+                  >
+                    RSI Div
+                  </button>
+                </div>
               </div>
             </div>
             {chartLoading ? (
@@ -323,7 +345,7 @@ export function MarketPage() {
                 <LoadingSpinner />
               </div>
             ) : chartData.length > 0 ? (
-              <CandlestickChart data={chartData} height={400} showVolume />
+              <CandlestickChart data={chartData} height={400} showVolume markers={divergenceMarkers} />
             ) : (
               <p className="text-sm text-text-muted">Sin datos del gráfico.</p>
             )}

@@ -16,6 +16,7 @@ export interface PendingUser {
 }
 
 export const authApi = {
+  needsSetup: () => apiGet<{ success: true; data: { needsSetup: boolean } }>('/auth/needs-setup'),
   register: (data: { email: string; password: string }) =>
     apiPost<{ success: true; data: { id: string; role: string; token: string } }>('/auth/register', data),
   login: (data: { email: string; password: string }) =>

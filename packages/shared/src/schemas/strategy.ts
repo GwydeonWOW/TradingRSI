@@ -2,9 +2,14 @@ import { z } from 'zod';
 
 export const EntryConfigSchema = z.object({
   rsiBelow: z.number().min(0).max(100),
+  rsiAbove: z.number().min(0).max(100).optional(),
+  rsiPeriod: z.number().positive().optional(),
+  useRsiDivergence: z.boolean().optional(),
   requireMultiTimeframeConfirmation: z.boolean(),
   useSmaFilter: z.boolean(),
   smaPeriod: z.number().positive(),
+  useVolumeConfirmation: z.boolean().optional(),
+  volumeMultiplier: z.number().positive().optional(),
   cooldownMinutes: z.number().nonnegative(),
 });
 

@@ -20,7 +20,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
         <Menu size={20} />
       </button>
 
-      <span className="text-base font-semibold text-text-primary">CryptoRSI v2</span>
+      <span className="text-base font-semibold text-text-primary">CryptoRSI</span>
 
       <div className="ml-4 hidden sm:block">
         <EnvironmentBadge environment="SIMULATION" variant="neutral" />

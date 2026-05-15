@@ -52,7 +52,7 @@ async function start() {
 
   try {
     await app.listen({ port, host });
-    logger.info({ port, host }, 'CryptoRSI v2 API started');
+    logger.info({ port, host }, 'CryptoRSI API started');
     logger.info(`Health check: http://${host}:${port}/api/health`);
   } catch (err) {
     logger.fatal(err, 'Failed to start server');

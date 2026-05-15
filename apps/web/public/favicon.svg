@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 260 260" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">CryptoRSI v2 Professional Icon</title>
+  <desc id="desc">Transparent SVG icon for CryptoRSI v2, combining a professional hexagonal trading mark with liquidity depth, RSI movement and execution nodes.</desc>
+
+  <defs>
+    <linearGradient id="frame-main" x1="52" y1="28" x2="214" y2="230" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D7E7F3" stop-opacity="0.92"/>
+      <stop offset="0.32" stop-color="#6D8298" stop-opacity="0.96"/>
+      <stop offset="0.68" stop-color="#1B354D" stop-opacity="0.98"/>
+      <stop offset="1" stop-color="#8BC8D8" stop-opacity="0.9"/>
+    </linearGradient>
+
+    <linearGradient id="frame-inner" x1="82" y1="55" x2="184" y2="204" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#EEF6FA" stop-opacity="0.52"/>
+      <stop offset="0.45" stop-color="#668297" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#A7D9E2" stop-opacity="0.52"/>
+    </linearGradient>
+
+    <linearGradient id="shield-fill" x1="69" y1="38" x2="202" y2="224" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#223448" stop-opacity="0.76"/>
+      <stop offset="0.48" stop-color="#0B1420" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#16354A" stop-opacity="0.72"/>
+    </linearGradient>
+
+    <radialGradient id="center-depth" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(132 129) rotate(90) scale(98 106)">
+      <stop offset="0" stop-color="#BFE7EF" stop-opacity="0.34"/>
+      <stop offset="0.48" stop-color="#32556C" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#050A12" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="liquidity-wave" x1="45" y1="93" x2="215" y2="159" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7F9CB0" stop-opacity="0.14"/>
+      <stop offset="0.5" stop-color="#C4DCE6" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#2E526B" stop-opacity="0.18"/>
+    </linearGradient>
+
+    <linearGradient id="rsi-line" x1="78" y1="158" x2="210" y2="94" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B6C4D1" stop-opacity="0.92"/>
+      <stop offset="0.38" stop-color="#5B7187" stop-opacity="0.96"/>
+      <stop offset="0.72" stop-color="#B7EEF5" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#7AA7BB" stop-opacity="0.96"/>
+    </linearGradient>
+
+    <linearGradient id="book-bars" x1="92" y1="75" x2="198" y2="177" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#DCEAF0" stop-opacity="0.78"/>
+      <stop offset="0.43" stop-color="#667D91" stop-opacity="0.84"/>
+      <stop offset="1" stop-color="#98D3DF" stop-opacity="0.72"/>
+    </linearGradient>
+
+    <linearGradient id="grid-line" x1="73" y1="71" x2="213" y2="184" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A9BBC8" stop-opacity="0.22"/>
+      <stop offset="0.48" stop-color="#EDF8FC" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#6D91A6" stop-opacity="0.2"/>
+    </linearGradient>
+
+    <radialGradient id="node-fill" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(132 130) rotate(90) scale(18)">
+      <stop offset="0" stop-color="#F3FBFD" stop-opacity="0.98"/>
+      <stop offset="0.42" stop-color="#A9D8E2" stop-opacity="0.88"/>
+      <stop offset="1" stop-color="#24445A" stop-opacity="0.64"/>
+    </radialGradient>
+
+    <linearGradient id="node-link" x1="100" y1="119" x2="183" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7995A9" stop-opacity="0.7"/>
+      <stop offset="0.5" stop-color="#D9EFF4" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#6D9EB1" stop-opacity="0.68"/>
+    </linearGradient>
+
+    <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="shadow"/>
+      <feOffset dx="0" dy="8" result="offset"/>
+      <feColorMatrix in="offset" type="matrix" values="0 0 0 0 0.015  0 0 0 0 0.045  0 0 0 0 0.075  0 0 0 0.42 0" result="shade"/>
+      <feMerge>
+        <feMergeNode in="shade"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="controlled-glow" x="-24%" y="-24%" width="148%" height="148%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="2.8" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.42  0 0 0 0 0.62  0 0 0 0 0.72  0 0 0 0.38 0" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <clipPath id="icon-clip">
+      <path d="M130 22.5 222.8 76.1v107.2L130 236.9 37.2 183.3V76.1L130 22.5Z"/>
+    </clipPath>
+  </defs>
+
+  <g filter="url(#soft-shadow)">
+    <path d="M130 22.5 222.8 76.1v107.2L130 236.9 37.2 183.3V76.1L130 22.5Z" fill="url(#shield-fill)"/>
+    <path d="M130 22.5 222.8 76.1v107.2L130 236.9 37.2 183.3V76.1L130 22.5Z" stroke="url(#frame-main)" stroke-width="5.2" stroke-linejoin="round"/>
+    <path d="M130 43.2 204.8 86.4v86.4L130 216 55.2 172.8V86.4L130 43.2Z" stroke="url(#frame-inner)" stroke-width="1.8" stroke-linejoin="round"/>
+  </g>
+
+  <g clip-path="url(#icon-clip)">
+    <circle cx="130" cy="130" r="108" fill="url(#center-depth)"/>
+
+    <path d="M35 165c25.2-24.8 56.1-31.8 91.4-21.2 40.4 12.1 72.7 3.3 102.9-28.6" stroke="url(#liquidity-wave)" stroke-width="14" stroke-linecap="round"/>
+    <path d="M33 92c28.5 24.2 60.4 30.1 95.4 17.1 35.9-13.4 66.4-6.2 94.9 21.5" stroke="url(#liquidity-wave)" stroke-width="10" stroke-linecap="round" opacity="0.82"/>
+
+    <g opacity="0.78">
+      <path d="M70 76h120" stroke="url(#grid-line)" stroke-width="1.2" stroke-dasharray="5 8"/>
+      <path d="M70 130h120" stroke="url(#grid-line)" stroke-width="1.1" stroke-dasharray="3 9"/>
+      <path d="M70 184h120" stroke="url(#grid-line)" stroke-width="1.2" stroke-dasharray="5 8"/>
+    </g>
+
+    <g stroke="url(#book-bars)" stroke-linecap="round" opacity="0.88" filter="url(#controlled-glow)">
+      <path d="M91 100v45" stroke-width="3.6"/>
+      <path d="M85 121h12" stroke-width="7"/>
+      <path d="M121 81v45" stroke-width="3.6"/>
+      <path d="M115 98h12" stroke-width="7"/>
+      <path d="M159 119v48" stroke-width="3.6"/>
+      <path d="M153 142h12" stroke-width="7"/>
+      <path d="M188 91v49" stroke-width="3.6"/>
+      <path d="M182 110h12" stroke-width="7"/>
+    </g>
+
+    <path d="M77 158c11.3-20.1 20.7-37.4 38.2-28.7 13.3 6.6 17.9 38.6 34.9 33.4 15.5-4.8 19.7-46.2 38.4-49.2 12.9-2.1 23.1 14.9 34.6 29.3" stroke="url(#rsi-line)" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round" filter="url(#controlled-glow)"/>
+
+    <g filter="url(#controlled-glow)">
+      <path d="M102 124 150 162 188 113" stroke="url(#node-link)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="102" cy="124" r="6.7" fill="url(#node-fill)"/>
+      <circle cx="150" cy="162" r="7.4" fill="url(#node-fill)"/>
+      <circle cx="188" cy="113" r="6.7" fill="url(#node-fill)"/>
+    </g>
+  </g>
+
+  <path d="M130 22.5 222.8 76.1v107.2L130 236.9 37.2 183.3V76.1L130 22.5Z" stroke="url(#frame-inner)" stroke-width="1.1" stroke-linejoin="round" opacity="0.9"/>
+</svg>
