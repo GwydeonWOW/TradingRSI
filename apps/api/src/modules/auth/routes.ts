@@ -288,6 +288,21 @@ export async function authRoutes(app: FastifyInstance) {
     }
   });
 
+  // POST /api/auth/force-reset — delete all users (emergency only)
+  app.post('/api/auth/force-reset', async (_request, reply) => {
+    try {
+      await prisma.userRecoveryCode.deleteMany({});
+      await prisma.userMfaSecret.deleteMany({});
+      await prisma.userSession.deleteMany({});
+      await prisma.user.deleteMany({});
+      logger.info('Force reset: all users deleted');
+      return reply.code(200).send({ success: true, data: { message: 'All users deleted' } });
+    } catch (err) {
+      logger.error(err, 'Force reset failed');
+      return reply.code(500).send({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Force reset failed' } });
+    }
+  });
+
   // POST /api/auth/seed-admin
   app.post('/api/auth/seed-admin', async (_request, reply) => {
     try {
