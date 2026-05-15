@@ -15,15 +15,19 @@ export function RegisterPage() {
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError('Las contrasenas no coinciden');
       return;
     }
     setLoading(true);
     setError(null);
     try {
       await register(email, password);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+    } catch (err: any) {
+      if (err?.response?.status === 409) {
+        setError('Ese email ya esta registrado. Inicia sesion.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Error al registrarse');
+      }
     } finally {
       setLoading(false);
     }
@@ -32,7 +36,7 @@ export function RegisterPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-primary px-4">
       <div className="w-full max-w-sm rounded-lg border border-border bg-bg-secondary p-8">
-        <h1 className="mb-6 text-center text-xl font-bold text-text-primary">Create Account</h1>
+        <h1 className="mb-6 text-center text-xl font-bold text-text-primary">CryptoRSI</h1>
 
         {error && (
           <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
@@ -43,14 +47,14 @@ export function RegisterPage() {
         <form onSubmit={handleRegister} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-text-secondary">Email</label>
-            <input type="email" className={inputClass} value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <input type="email" className={inputClass} value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-text-secondary">Password</label>
+            <label className="mb-1 block text-sm font-medium text-text-secondary">Contrasena</label>
             <input type="password" className={inputClass} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-text-secondary">Confirm Password</label>
+            <label className="mb-1 block text-sm font-medium text-text-secondary">Confirmar contrasena</label>
             <input type="password" className={inputClass} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} />
           </div>
           <button
@@ -58,12 +62,12 @@ export function RegisterPage() {
             disabled={loading}
             className="w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
           >
-            {loading ? 'Creating account...' : 'Create Account'}
+            {loading ? 'Creando...' : 'Crear Cuenta'}
           </button>
         </form>
 
         <p className="mt-4 text-center text-xs text-text-muted">
-          Already have an account? <a href="/login" className="text-accent hover:text-accent-hover">Sign in</a>
+          Ya tienes cuenta? <a href="/login" className="text-accent hover:text-accent-hover">Iniciar sesion</a>
         </p>
       </div>
     </div>

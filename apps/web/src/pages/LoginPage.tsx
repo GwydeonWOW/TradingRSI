@@ -23,7 +23,7 @@ export function LoginPage() {
         setRequiresMfa(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : 'Error al iniciar sesion');
     } finally {
       setLoading(false);
     }
@@ -36,7 +36,7 @@ export function LoginPage() {
     try {
       await challengeMfa(mfaCode);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid code');
+      setError(err instanceof Error ? err.message : 'Codigo invalido');
     } finally {
       setLoading(false);
     }
@@ -45,7 +45,7 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-primary px-4">
       <div className="w-full max-w-sm rounded-lg border border-border bg-bg-secondary p-8">
-        <h1 className="mb-6 text-center text-xl font-bold text-text-primary">CryptoRSI v2</h1>
+        <h1 className="mb-6 text-center text-xl font-bold text-text-primary">CryptoRSI</h1>
 
         {error && (
           <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
@@ -57,10 +57,10 @@ export function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-text-secondary">Email</label>
-              <input type="email" className={inputClass} value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <input type="email" className={inputClass} value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-text-secondary">Password</label>
+              <label className="mb-1 block text-sm font-medium text-text-secondary">Contrasena</label>
               <input type="password" className={inputClass} value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <button
@@ -68,14 +68,14 @@ export function LoginPage() {
               disabled={loading}
               className="w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Iniciando...' : 'Iniciar Sesion'}
             </button>
           </form>
         ) : (
           <form onSubmit={handleMfa} className="space-y-4">
-            <p className="text-sm text-text-muted">Enter your 2FA code or a recovery code.</p>
+            <p className="text-sm text-text-muted">Introduce tu codigo 2FA o un codigo de recuperacion.</p>
             <div>
-              <label className="mb-1 block text-sm font-medium text-text-secondary">Code</label>
+              <label className="mb-1 block text-sm font-medium text-text-secondary">Codigo</label>
               <input type="text" className={inputClass} value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} placeholder="000000" required autoFocus />
             </div>
             <button
@@ -83,13 +83,13 @@ export function LoginPage() {
               disabled={loading}
               className="w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
             >
-              {loading ? 'Verifying...' : 'Verify'}
+              {loading ? 'Verificando...' : 'Verificar'}
             </button>
           </form>
         )}
 
         <p className="mt-4 text-center text-xs text-text-muted">
-          Don't have an account? <a href="/register" className="text-accent hover:text-accent-hover">Register</a>
+          No tienes cuenta? <a href="/register" className="text-accent hover:text-accent-hover">Registrarse</a>
         </p>
       </div>
     </div>
