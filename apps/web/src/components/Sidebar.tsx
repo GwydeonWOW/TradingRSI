@@ -45,6 +45,8 @@ const groups: NavGroup[] = [
     title: 'Configuracion',
     items: [
       { label: 'Settings', path: '/settings', icon: '🔧' },
+      { label: 'Seguridad 2FA', path: '/settings/2fa', icon: '🔐' },
+      { label: 'Usuarios', path: '/users', icon: '👥' },
     ],
   },
   {

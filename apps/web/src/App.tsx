@@ -19,6 +19,8 @@ import { LiquidityPage } from './pages/LiquidityPage.tsx';
 import { VersionComparePage } from './pages/VersionComparePage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
+import { TwoFactorPage } from './pages/TwoFactorPage.tsx';
+import { UsersPage } from './pages/UsersPage.tsx';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -49,7 +51,9 @@ function AppRoutes() {
         <Route path="/signals" element={<SignalsPage />} />
         <Route path="/market" element={<MarketPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/2fa" element={<TwoFactorPage />} />
         <Route path="/settings/live-readiness" element={<LiveReadinessPage />} />
+        <Route path="/users" element={<UsersPage />} />
         <Route path="/audit" element={<AuditPage />} />
         <Route path="/liquidity" element={<LiquidityPage />} />
         <Route path="/backtests" element={<BacktestsPage />} />

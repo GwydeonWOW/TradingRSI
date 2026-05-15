@@ -8,12 +8,14 @@ import {
   type ReconcileResult,
   type BinanceCredentialInfo,
 } from '../api/trading.ts';
+import { useAuth } from '../context/AuthContext.tsx';
 
 const inputClass =
   'w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
 const labelClass = 'mb-1 block text-sm font-medium text-text-secondary';
 
 export function SettingsPage() {
+  const { user } = useAuth();
   const [binanceStatus, setBinanceStatus] = useState<BinanceStatus | null>(null);
   const [balances, setBalances] = useState<BinanceBalance[]>([]);
   const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
@@ -223,8 +225,20 @@ export function SettingsPage() {
         </div>
 
         <div className="rounded-lg border border-border bg-bg-secondary p-4">
-          <h2 className="mb-2 text-sm font-medium text-text-primary">Seguridad y 2FA</h2>
-          <p className="text-sm text-text-muted">2FA pendiente de activacion.</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="mb-1 text-sm font-medium text-text-primary">Seguridad y 2FA</h2>
+              <p className="text-sm text-text-muted">
+                Estado: <span className={binanceStatus ? 'text-success' : 'text-warning'}>{user?.mfaEnabled ? '2FA Activado' : '2FA Desactivado'}</span>
+              </p>
+            </div>
+            <Link
+              to="/settings/2fa"
+              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+            >
+              {user?.mfaEnabled ? 'Ver 2FA' : 'Configurar 2FA'}
+            </Link>
+          </div>
         </div>
 
         <div className="rounded-lg border border-border bg-bg-secondary p-4">
@@ -232,10 +246,22 @@ export function SettingsPage() {
           <p className="text-sm text-text-muted">Parametros de riesgo no configurados.</p>
         </div>
 
-        <div className="rounded-lg border border-border bg-bg-secondary p-4">
-          <h2 className="mb-2 text-sm font-medium text-text-primary">Notificaciones</h2>
-          <p className="text-sm text-text-muted">Sin canales configurados.</p>
-        </div>
+        {user?.role === 'admin' && (
+          <div className="rounded-lg border border-border bg-bg-secondary p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="mb-1 text-sm font-medium text-text-primary">Gestion de Usuarios</h2>
+                <p className="text-sm text-text-muted">Aprobar y gestionar usuarios del sistema.</p>
+              </div>
+              <Link
+                to="/users"
+                className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+              >
+                Gestionar Usuarios
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
