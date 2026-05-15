@@ -38,7 +38,6 @@ export interface PaginatedStrategies {
 export interface BacktestRequest {
   strategyId: string;
   strategyVersionId?: string;
-  symbol: string;
   interval: string;
   startDate: string;
   endDate: string;
@@ -80,6 +79,8 @@ export interface BacktestResult {
   metrics: BacktestMetrics;
   trades: BacktestTrade[];
   equityCurve: Array<{ time: number; equity: number }>;
+  perSymbol?: Record<string, { metrics: BacktestMetrics; trades: BacktestTrade[]; candleCount: number }>;
+  symbols?: string[];
 }
 
 export interface StrategyVersion {

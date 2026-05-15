@@ -196,7 +196,6 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const [strategyId, setStrategyId] = useState(preselectedStrategyId ?? '');
-  const [symbol, setSymbol] = useState('');
   const [strategySymbols, setStrategySymbols] = useState<string[]>([]);
   const [interval, setInterval_] = useState('1h');
   const [startDate, setStartDate] = useState(formatDateInput(thirtyDaysAgo));
@@ -208,14 +207,11 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
     fetchStrategies();
   }, []);
 
-  // When strategy changes, populate symbols
+  // When strategy changes, update symbols display
   useEffect(() => {
     const selected = strategies.find((s) => s.id === strategyId);
-    if (selected && selected.symbols.length > 0) {
+    if (selected) {
       setStrategySymbols(selected.symbols);
-      if (!selected.symbols.includes(symbol)) {
-        setSymbol(selected.symbols[0]!);
-      }
     } else {
       setStrategySymbols([]);
     }
@@ -226,13 +222,10 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
     try {
       const res = await strategiesApi.list();
       setStrategies(res.data);
-      // Auto-select first strategy if preselected
       if (preselectedStrategyId) {
+        setStrategyId(preselectedStrategyId);
         const s = res.data.find((s) => s.id === preselectedStrategyId);
-        if (s && s.symbols.length > 0) {
-          setStrategySymbols(s.symbols);
-          setSymbol(s.symbols[0]!);
-        }
+        if (s) setStrategySymbols(s.symbols);
       } else if (res.data.length > 0) {
         setStrategyId(res.data[0]!.id);
       }
@@ -244,14 +237,13 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
   }
 
   async function handleRun() {
-    if (!strategyId || !symbol || !startDate || !endDate) return;
+    if (!strategyId || !startDate || !endDate) return;
     setLoading(true);
     setError(null);
     setResult(null);
     try {
       const res = await backtestsApi.run({
         strategyId,
-        symbol,
         interval,
         startDate,
         endDate,
@@ -268,8 +260,6 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
 
   const inputClass = 'w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none';
   const labelClass = 'mb-1 block text-xs font-medium text-text-secondary';
-
-  const availableSymbols = strategySymbols.length > 0 ? strategySymbols : ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
 
   return (
     <div className="space-y-6">
@@ -292,20 +282,15 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
             </select>
           </div>
           <div>
-            <label className={labelClass}>Simbolo {strategySymbols.length > 0 && <span className="text-text-muted">(de la estrategia)</span>}</label>
-            {strategySymbols.length > 1 ? (
-              <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className={inputClass}>
-                {availableSymbols.map((sym) => (
-                  <option key={sym} value={sym}>{sym}</option>
-                ))}
-              </select>
-            ) : (
-              <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className={inputClass}>
-                {availableSymbols.map((sym) => (
-                  <option key={sym} value={sym}>{sym}</option>
-                ))}
-              </select>
-            )}
+            <label className={labelClass}>Tokens</label>
+            <div className="flex min-h-[38px] flex-wrap items-center gap-1 rounded-md border border-border bg-bg-primary px-3 py-2 text-xs text-text-primary">
+              {strategySymbols.length > 0
+                ? strategySymbols.map((sym) => (
+                    <span key={sym} className="rounded bg-accent/15 px-1.5 py-0.5 font-medium">{sym}</span>
+                  ))
+                : <span className="text-text-muted">Selecciona una estrategia</span>
+              }
+            </div>
           </div>
           <div>
             <label className={labelClass}>Intervalo</label>
@@ -336,7 +321,7 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
           <button
             type="button"
             onClick={handleRun}
-            disabled={loading || !strategyId || !symbol || !startDate || !endDate}
+            disabled={loading || !strategyId || !startDate || !endDate}
             className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Ejecutando...' : 'Ejecutar Backtest'}
@@ -355,8 +340,32 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
       {/* Results */}
       {result && (
         <div className="space-y-6">
-          <h2 className="text-sm font-medium text-text-secondary">Resultados ({result.trades.length} trades, {result.equityCurve.length} puntos curva)</h2>
+          <h2 className="text-sm font-medium text-text-secondary">
+            Resultados — {result.symbols?.join(', ') ?? '?'} ({result.trades.length} trades)
+          </h2>
           <MetricsGrid metrics={result.metrics} />
+
+          {/* Per-symbol breakdown */}
+          {result.perSymbol && Object.keys(result.perSymbol).length > 1 && (
+            <div>
+              <h3 className="mb-2 text-sm font-medium text-text-secondary">Desglose por Token</h3>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {Object.entries(result.perSymbol).map(([sym, data]) => (
+                  <div key={sym} className="rounded-lg border border-border bg-bg-secondary p-3">
+                    <p className="text-sm font-medium text-text-primary">{sym}</p>
+                    <p className={`text-lg font-semibold ${pnlColor(data.metrics.totalPnl)}`}>
+                      {pnlSign(data.metrics.totalPnl)}{data.metrics.totalPnl.toFixed(2)} USDT
+                    </p>
+                    <div className="mt-1 flex gap-3 text-xs text-text-muted">
+                      <span>{data.metrics.totalTrades} trades</span>
+                      <span>{data.metrics.winRate.toFixed(0)}% win</span>
+                      <span>{data.metrics.sharpeRatio.toFixed(2)} sharpe</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Equity curve */}
           <div>

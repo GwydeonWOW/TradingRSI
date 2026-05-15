@@ -71,13 +71,12 @@ async function fetchHistoricalKlines(
 }
 
 export async function backtestRoutes(app: FastifyInstance) {
-  // POST /api/backtests - Run a new backtest
+  // POST /api/backtests - Run a new backtest across all strategy symbols
   app.post('/api/backtests', async (request, reply) => {
     try {
       const body = request.body as {
         strategyId: string;
         strategyVersionId?: string;
-        symbol: string;
         interval: string;
         startDate: string;
         endDate: string;
@@ -85,10 +84,10 @@ export async function backtestRoutes(app: FastifyInstance) {
         commissionRate?: number;
       };
 
-      if (!body.strategyId || !body.symbol || !body.interval || !body.startDate || !body.endDate) {
+      if (!body.strategyId || !body.interval || !body.startDate || !body.endDate) {
         return reply.code(400).send({
           success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'strategyId, symbol, interval, startDate, endDate are required' },
+          error: { code: 'VALIDATION_ERROR', message: 'strategyId, interval, startDate, endDate are required' },
         });
       }
 
@@ -147,33 +146,79 @@ export async function backtestRoutes(app: FastifyInstance) {
         });
       }
 
-      // Fetch historical klines
-      const candles = await fetchHistoricalKlines(
-        body.symbol,
-        body.interval,
-        startDate.getTime(),
-        endDate.getTime(),
-      );
+      const symbols = config.symbols;
+      const initialCapital = body.initialCapital ?? 1000;
+      const commissionRate = body.commissionRate ?? 0.001;
 
-      if (candles.length < 20) {
-        return reply.code(400).send({
-          success: false,
-          error: { code: 'INSUFFICIENT_DATA', message: `Only ${candles.length} candles available. Need at least 20.` },
-        });
+      // Run backtest for each symbol and aggregate results
+      const perSymbolResults: Record<string, { metrics: import('../../domain/backtest/engine.js').BacktestMetrics; trades: import('../../domain/backtest/engine.js').BacktestTrade[]; equityCurve: Array<{ time: number; equity: number }>; candleCount: number }> = {};
+      const allTrades: import('../../domain/backtest/engine.js').BacktestTrade[] = [];
+
+      for (const symbol of symbols) {
+        try {
+          const candles = await fetchHistoricalKlines(symbol, body.interval, startDate.getTime(), endDate.getTime());
+          if (candles.length < 20) {
+            perSymbolResults[symbol] = { metrics: emptyMetrics(), trades: [], equityCurve: [], candleCount: candles.length };
+            continue;
+          }
+
+          const params: BacktestParams = {
+            strategyId: strategy.id,
+            strategyVersionId: versionId,
+            symbol,
+            interval: body.interval,
+            startDate,
+            endDate,
+            initialCapital,
+            commissionRate,
+          };
+
+          const result = runBacktest(config, candles, params);
+          perSymbolResults[symbol] = { metrics: result.metrics, trades: result.trades, equityCurve: result.equityCurve, candleCount: candles.length };
+          allTrades.push(...result.trades);
+        } catch {
+          perSymbolResults[symbol] = { metrics: emptyMetrics(), trades: [], equityCurve: [], candleCount: 0 };
+        }
       }
 
-      const params: BacktestParams = {
-        strategyId: strategy.id,
-        strategyVersionId: versionId,
-        symbol: body.symbol,
-        interval: body.interval,
-        startDate,
-        endDate,
-        initialCapital: body.initialCapital ?? 1000,
-        commissionRate: body.commissionRate ?? 0.001,
+      // Aggregate metrics across all symbols
+      const totalTrades = allTrades.length;
+      const winningTrades = allTrades.filter((t) => t.pnl > 0).length;
+      const losingTrades = allTrades.filter((t) => t.pnl <= 0).length;
+      const totalPnl = allTrades.reduce((sum, t) => sum + t.pnl, 0);
+      const totalPnlPct = initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0;
+      const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
+      const grossProfit = allTrades.filter((t) => t.pnl > 0).reduce((sum, t) => sum + t.pnl, 0);
+      const grossLoss = Math.abs(allTrades.filter((t) => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0));
+      const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+      const pnlValues = allTrades.map((t) => t.pnlPct);
+      const bestTrade = pnlValues.length > 0 ? Math.max(...pnlValues) : 0;
+      const worstTrade = pnlValues.length > 0 ? Math.min(...pnlValues) : 0;
+      const sharpeRatio = totalTrades >= 2 ? calcSharpe(pnlValues) : 0;
+      const maxDrawdown = Math.max(...Object.values(perSymbolResults).map((r) => r.metrics.maxDrawdown), 0);
+      const finalCapital = initialCapital + totalPnl;
+
+      const aggregatedMetrics: import('../../domain/backtest/engine.js').BacktestMetrics = {
+        totalTrades,
+        winningTrades,
+        losingTrades,
+        winRate,
+        totalPnl,
+        totalPnlPct,
+        maxDrawdown,
+        maxDrawdownDuration: 0,
+        profitFactor,
+        avgTradeDuration: 0,
+        bestTrade,
+        worstTrade,
+        avgWin: winningTrades > 0 ? allTrades.filter((t) => t.pnl > 0).reduce((s, t) => s + t.pnlPct, 0) / winningTrades : 0,
+        avgLoss: losingTrades > 0 ? allTrades.filter((t) => t.pnl <= 0).reduce((s, t) => s + t.pnlPct, 0) / losingTrades : 0,
+        sharpeRatio,
+        finalCapital,
       };
 
-      const result = runBacktest(config, candles, params);
+      // Build merged equity curve across all symbols
+      const mergedCurve = mergeEquityCurves(Object.values(perSymbolResults).map((r) => r.equityCurve), initialCapital);
 
       // Save as audit event
       await createAuditEvent({
@@ -183,27 +228,28 @@ export async function backtestRoutes(app: FastifyInstance) {
         entityId: strategy.id,
         payload: {
           strategyVersionId: versionId,
-          symbol: body.symbol,
+          symbols,
           interval: body.interval,
           startDate: body.startDate,
           endDate: body.endDate,
-          initialCapital: params.initialCapital,
-          commissionRate: params.commissionRate,
-          totalTrades: result.metrics.totalTrades,
-          totalPnl: result.metrics.totalPnl,
-          winRate: result.metrics.winRate,
-          maxDrawdown: result.metrics.maxDrawdown,
-          sharpeRatio: result.metrics.sharpeRatio,
+          initialCapital,
+          commissionRate,
+          totalTrades,
+          totalPnl,
+          winRate,
+          maxDrawdown,
+          sharpeRatio,
         },
-      });
+      }).catch(() => {});
 
       return reply.code(200).send({
         success: true,
         data: {
-          metrics: result.metrics,
-          trades: result.trades,
-          equityCurve: result.equityCurve,
-          candleCount: candles.length,
+          metrics: aggregatedMetrics,
+          trades: allTrades,
+          equityCurve: mergedCurve,
+          perSymbol: perSymbolResults,
+          symbols,
         },
       });
     } catch (err) {
@@ -370,4 +416,41 @@ export async function backtestRoutes(app: FastifyInstance) {
       });
     }
   });
+}
+
+function emptyMetrics(): import('../../domain/backtest/engine.js').BacktestMetrics {
+  return {
+    totalTrades: 0, winningTrades: 0, losingTrades: 0, winRate: 0,
+    totalPnl: 0, totalPnlPct: 0, maxDrawdown: 0, maxDrawdownDuration: 0,
+    profitFactor: 0, avgTradeDuration: 0, bestTrade: 0, worstTrade: 0,
+    avgWin: 0, avgLoss: 0, sharpeRatio: 0, finalCapital: 0,
+  };
+}
+
+function calcSharpe(returns: number[]): number {
+  if (returns.length < 2) return 0;
+  const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
+  const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1);
+  const stdDev = Math.sqrt(variance);
+  if (stdDev === 0) return 0;
+  return (mean / stdDev) * Math.sqrt(252);
+}
+
+function mergeEquityCurves(
+  curves: Array<Array<{ time: number; equity: number }>>,
+  initialCapital: number,
+): Array<{ time: number; equity: number }> {
+  if (curves.length === 0) return [];
+  if (curves.length === 1) return curves[0]!;
+
+  // Merge by time: sum PnL from all curves relative to initial
+  const byTime = new Map<number, number>();
+  for (const curve of curves) {
+    for (const point of curve) {
+      byTime.set(point.time, (byTime.get(point.time) ?? 0) + point.equity - initialCapital);
+    }
+  }
+
+  const times = Array.from(byTime.keys()).sort((a, b) => a - b);
+  return times.map((t) => ({ time: t, equity: initialCapital + (byTime.get(t) ?? 0) }));
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { createChart, type IChartApi, type ISeriesApi, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts';
+import { createChart, createSeriesMarkers, type IChartApi, type ISeriesApi, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts';
 
 export interface CandleData {
   time: number;
@@ -94,7 +94,8 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
 
     // Markers (buy/sell signals)
     if (markers && markers.length > 0) {
-      (candleSeries as any).setMarkers(
+      createSeriesMarkers(
+        candleSeries,
         markers.map((m) => ({
           time: m.time as any,
           position: m.position,
