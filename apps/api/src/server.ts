@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { logger } from './infrastructure/logger/index.js';
 import { healthRoutes } from './modules/health/routes.js';
+import { authRoutes } from './modules/auth/routes.js';
 import { strategyRoutes } from './modules/strategies/routes.js';
 import { botRoutes } from './modules/bot/routes.js';
 import { binanceRoutes } from './modules/binance/routes.js';
@@ -26,6 +27,7 @@ async function start() {
   });
 
   // Routes
+  await app.register(authRoutes);
   await app.register(healthRoutes);
   await app.register(strategyRoutes);
   await app.register(botRoutes);

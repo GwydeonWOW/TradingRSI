@@ -1,3 +1,4 @@
+import { useAuth } from '../context/AuthContext.tsx';
 import { EnvironmentBadge } from './EnvironmentBadge.tsx';
 
 interface TopbarProps {
@@ -5,6 +6,8 @@ interface TopbarProps {
 }
 
 export function Topbar({ onToggleSidebar }: TopbarProps) {
+  const { user, logout } = useAuth();
+
   return (
     <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center border-b border-border bg-bg-secondary px-4">
       <button
@@ -25,9 +28,23 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
       </div>
 
       <div className="ml-auto flex items-center gap-3">
-        <span className="hidden text-xs text-text-muted lg:inline">Bot: ---</span>
-        <span className="hidden text-xs text-text-muted lg:inline">User: admin</span>
-        <span className="hidden text-xs text-text-muted lg:inline">2FA: --</span>
+        {user && (
+          <>
+            <span className="hidden text-xs text-text-muted lg:inline">
+              Role: <span className="font-medium text-text-secondary">{user.role}</span>
+            </span>
+            <span className="hidden text-xs text-text-muted lg:inline">
+              2FA: <span className={user.mfaEnabled ? 'text-success' : 'text-warning'}>{user.mfaEnabled ? 'ON' : 'OFF'}</span>
+            </span>
+            <button
+              type="button"
+              onClick={logout}
+              className="rounded-md px-2 py-1 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+            >
+              Logout
+            </button>
+          </>
+        )}
       </div>
     </header>
   );

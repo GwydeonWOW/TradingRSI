@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { AppShell } from './components/AppShell.tsx';
 import { DashboardPage } from './pages/DashboardPage.tsx';
 import { BotPage } from './pages/BotPage.tsx';
@@ -16,10 +17,24 @@ import { AuditPage } from './pages/AuditPage.tsx';
 import { BacktestsPage } from './pages/BacktestsPage.tsx';
 import { LiquidityPage } from './pages/LiquidityPage.tsx';
 import { VersionComparePage } from './pages/VersionComparePage.tsx';
+import { LoginPage } from './pages/LoginPage.tsx';
+import { RegisterPage } from './pages/RegisterPage.tsx';
 
-export default function App() {
+function AppRoutes() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg-primary">
+        <p className="text-text-muted">Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route element={<AppShell />}>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
@@ -40,5 +55,13 @@ export default function App() {
         <Route path="/backtests" element={<BacktestsPage />} />
       </Route>
     </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   );
 }
