@@ -2,6 +2,7 @@
 export type StrategyStatus = 'draft' | 'active' | 'paused' | 'archived';
 export type ExecutionMode =
   | 'simulation'
+  | 'signal_only'
   | 'binance_demo_dry_run'
   | 'binance_demo_live'
   | 'binance_live_dry_run'
@@ -19,6 +20,7 @@ export interface StrategyConfig {
 }
 
 export interface EntryConfig {
+  entryMode?: 'rsi_threshold' | 'divergence';
   rsiBelow: number;
   rsiAbove?: number;
   rsiPeriod?: number;
@@ -36,6 +38,7 @@ export interface ExitConfig {
   takeProfitPct: number;
   stopLossPct: number;
   trailingStopPct: number | null;
+  exitOnBearishDivergence?: boolean;
 }
 
 export interface RiskConfig {

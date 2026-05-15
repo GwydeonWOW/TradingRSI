@@ -23,10 +23,10 @@ const defaultConfig: StrategyConfig = {
   symbols: [],
   timeframes: ['15m', '1h', '4h'],
   entry: {
+    entryMode: 'rsi_threshold' as const,
     rsiBelow: 30,
     rsiAbove: undefined,
     rsiPeriod: 14,
-    useRsiDivergence: false,
     requireMultiTimeframeConfirmation: true,
     useSmaFilter: true,
     smaPeriod: 200,
@@ -39,6 +39,7 @@ const defaultConfig: StrategyConfig = {
     takeProfitPct: 8,
     stopLossPct: 3,
     trailingStopPct: null,
+    exitOnBearishDivergence: false,
   },
   risk: {
     quoteAmountPerTrade: 25,
@@ -370,14 +371,42 @@ function StepEntry({
   onUpdate: <K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) => void;
 }) {
   const entry = config.entry as unknown as Record<string, unknown>;
+  const entryMode = (config.entry.entryMode ?? (config.entry.useRsiDivergence ? 'divergence' : 'rsi_threshold')) as 'rsi_threshold' | 'divergence';
+
   return (
     <div className="space-y-4">
       <h2 className="mb-3 text-sm font-medium text-text-secondary">Reglas de Entrada</h2>
 
+      {/* Entry Mode */}
+      <div className="rounded-md border border-border bg-bg-primary p-3">
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-accent">Modo de Entrada</h3>
+        <div className="flex gap-6">
+          <label className="flex items-center gap-2 text-sm text-text-primary cursor-pointer">
+            <input type="radio" name="entryMode" value="rsi_threshold"
+              checked={entryMode === 'rsi_threshold'}
+              onChange={() => onUpdate('entry', { ...config.entry, entryMode: 'rsi_threshold' } as any)}
+              className="h-4 w-4 accent-accent" />
+            Umbral RSI
+          </label>
+          <label className="flex items-center gap-2 text-sm text-text-primary cursor-pointer">
+            <input type="radio" name="entryMode" value="divergence"
+              checked={entryMode === 'divergence'}
+              onChange={() => onUpdate('entry', { ...config.entry, entryMode: 'divergence' } as any)}
+              className="h-4 w-4 accent-accent" />
+            Divergencia RSI
+          </label>
+        </div>
+        <p className="mt-2 text-xs text-text-muted">
+          {entryMode === 'rsi_threshold'
+            ? 'Compra cuando RSI cae por debajo del umbral configurado.'
+            : 'Compra al detectar divergencia alcista (precio hace minimo menor pero RSI hace minimo mayor).'}
+        </p>
+      </div>
+
       {/* RSI Configuration */}
       <div className="rounded-md border border-border bg-bg-primary p-3">
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-accent">RSI</h3>
-        <div className="grid grid-cols-3 gap-4">
+        <div className={`grid gap-4 ${entryMode === 'rsi_threshold' ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <div>
             <label className={labelClass}>Periodo RSI</label>
             <input
@@ -386,14 +415,16 @@ function StepEntry({
               onChange={(e) => onUpdate('entry', { ...config.entry, rsiPeriod: Number(e.target.value) } as any)}
             />
           </div>
-          <div>
-            <label className={labelClass}>RSI Below (sobreventa)</label>
-            <input
-              type="number" min={0} max={100} className={inputClass}
-              value={config.entry.rsiBelow}
-              onChange={(e) => onUpdate('entry', { ...config.entry, rsiBelow: Number(e.target.value) })}
-            />
-          </div>
+          {entryMode === 'rsi_threshold' && (
+            <div>
+              <label className={labelClass}>RSI Below (sobreventa)</label>
+              <input
+                type="number" min={0} max={100} className={inputClass}
+                value={config.entry.rsiBelow}
+                onChange={(e) => onUpdate('entry', { ...config.entry, rsiBelow: Number(e.target.value) })}
+              />
+            </div>
+          )}
           <div>
             <label className={labelClass}>RSI Above (sobrecompra) — opcional</label>
             <input
@@ -410,7 +441,7 @@ function StepEntry({
       <div className="rounded-md border border-border bg-bg-primary p-3">
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-accent">Condiciones Combinatorias</h3>
         <p className="mb-3 text-xs text-text-muted">
-          Activa las condiciones adicionales que deben cumplirse junto con RSI para generar una entrada.
+          Activa las condiciones adicionales que deben cumplirse junto con la señal de entrada.
         </p>
         <div className="space-y-3">
           <label className="flex items-center gap-2 text-sm text-text-primary">
@@ -442,16 +473,6 @@ function StepEntry({
               />
             </div>
           )}
-
-          <label className="flex items-center gap-2 text-sm text-text-primary">
-            <input
-              type="checkbox"
-              checked={(entry.useRsiDivergence as boolean) ?? false}
-              onChange={(e) => onUpdate('entry', { ...config.entry, useRsiDivergence: e.target.checked } as any)}
-              className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
-            />
-            Confirmacion por divergencia RSI
-          </label>
 
           <label className="flex items-center gap-2 text-sm text-text-primary">
             <input
@@ -495,6 +516,9 @@ function StepExit({
   config: StrategyConfig;
   onUpdate: <K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) => void;
 }) {
+  const entryMode = (config.entry.entryMode ?? (config.entry.useRsiDivergence ? 'divergence' : 'rsi_threshold')) as 'rsi_threshold' | 'divergence';
+  const exit = config.exit as unknown as Record<string, unknown>;
+
   return (
     <div className="space-y-4">
       <h2 className="mb-3 text-sm font-medium text-text-secondary">Reglas de Salida</h2>
@@ -538,6 +562,17 @@ function StepExit({
           placeholder="Desactivado"
         />
       </div>
+      {entryMode === 'divergence' && (
+        <label className="flex items-center gap-2 text-sm text-text-primary">
+          <input
+            type="checkbox"
+            checked={(exit.exitOnBearishDivergence as boolean) ?? false}
+            onChange={(e) => onUpdate('exit', { ...config.exit, exitOnBearishDivergence: e.target.checked })}
+            className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
+          />
+          Salir en divergencia bajista
+        </label>
+      )}
     </div>
   );
 }
@@ -682,10 +717,12 @@ function StepSummary({
         </SummarySection>
 
         <SummarySection title="Reglas de Entrada">
+          <SummaryRow label="Modo" value={config.entry.entryMode === 'divergence' ? 'Divergencia RSI' : 'Umbral RSI'} />
           <SummaryRow label="RSI Periodo" value={String((config.entry as unknown as Record<string, unknown>).rsiPeriod ?? 14)} />
-          <SummaryRow label="RSI Below" value={String(config.entry.rsiBelow)} />
+          {(config.entry.entryMode ?? 'rsi_threshold') === 'rsi_threshold' && (
+            <SummaryRow label="RSI Below" value={String(config.entry.rsiBelow)} />
+          )}
           <SummaryRow label="RSI Above" value={String((config.entry as unknown as Record<string, unknown>).rsiAbove ?? 'No')} />
-          <SummaryRow label="Divergencia RSI" value={((config.entry as unknown as Record<string, unknown>).useRsiDivergence as boolean) ? 'Si' : 'No'} />
           <SummaryRow label="SMA Filter" value={config.entry.useSmaFilter ? `Si (${config.entry.smaPeriod})` : 'No'} />
           <SummaryRow label="Multi-TF Confirm" value={config.entry.requireMultiTimeframeConfirmation ? 'Si' : 'No'} />
           <SummaryRow label="Vol. Confirmacion" value={((config.entry as unknown as Record<string, unknown>).useVolumeConfirmation as boolean) ? `Si (${(config.entry as unknown as Record<string, unknown>).volumeMultiplier ?? 1.5}x)` : 'No'} />
@@ -697,6 +734,9 @@ function StepSummary({
           <SummaryRow label="Take Profit" value={`${config.exit.takeProfitPct}%`} />
           <SummaryRow label="Stop Loss" value={`${config.exit.stopLossPct}%`} />
           <SummaryRow label="Trailing Stop" value={config.exit.trailingStopPct != null ? `${config.exit.trailingStopPct}%` : 'Desactivado'} />
+          {(config.entry.entryMode ?? 'rsi_threshold') === 'divergence' && (
+            <SummaryRow label="Salida divergencia bajista" value={((config.exit as unknown as Record<string, unknown>).exitOnBearishDivergence as boolean) ? 'Si' : 'No'} />
+          )}
         </SummarySection>
 
         <SummarySection title="Riesgo y Capital">

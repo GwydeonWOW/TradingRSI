@@ -184,8 +184,67 @@ export async function runEvaluationCycle(): Promise<void> {
             continue;
           }
 
-          // Execute in simulation mode
-          if (strategy.mode === 'simulation') {
+          // Execute
+          if (strategy.mode === 'signal_only') {
+            // Paper trading: track hypothetical positions using live data
+            const simPositions = openPositions.map((p) => ({
+              id: p.id,
+              symbol: p.symbol,
+              side: 'BUY' as const,
+              entryPrice: Number(p.entryPrice ?? 0),
+              quantity: Number(p.quantity ?? 0),
+              investedQuote: Number(p.investedQuote ?? 0),
+              openedAt: p.openedAt?.getTime() ?? Date.now(),
+              strategyId: p.strategyId,
+              strategyVersionId: p.strategyVersionId,
+            }));
+
+            const result = executeSimulation(signal, config, simPositions);
+
+            if (result.action === 'OPEN' && result.position) {
+              const pos = result.position;
+              await prisma.position.create({
+                data: {
+                  strategyId: strategy.id,
+                  strategyVersionId: versionId,
+                  symbol: pos.symbol,
+                  status: 'open',
+                  source: 'signal_only',
+                  entryPrice: pos.entryPrice,
+                  quantity: pos.quantity,
+                  investedQuote: pos.investedQuote,
+                  openedAt: new Date(pos.openedAt),
+                },
+              });
+              addEvent('position_opened', { symbol, price: pos.entryPrice, invested: pos.investedQuote, source: 'signal_only' });
+              await createAuditEvent({
+                actorType: 'bot',
+                eventType: 'position_opened_signal_only',
+                entityType: 'position',
+                payload: { symbol, price: pos.entryPrice, invested: pos.investedQuote },
+              });
+            } else if (result.action === 'CLOSE' && result.position) {
+              const pos = result.position;
+              await prisma.position.update({
+                where: { id: pos.id },
+                data: {
+                  status: 'closed',
+                  exitPrice: signal.price,
+                  realizedPnl: result.realizedPnl,
+                  realizedPnlPct: result.realizedPnlPct,
+                  closedAt: new Date(),
+                },
+              });
+              addEvent('position_closed', { symbol, pnl: result.realizedPnl, pnlPct: result.realizedPnlPct, source: 'signal_only' });
+              await createAuditEvent({
+                actorType: 'bot',
+                eventType: 'position_closed_signal_only',
+                entityType: 'position',
+                entityId: pos.id,
+                payload: { symbol, pnl: result.realizedPnl, pnlPct: result.realizedPnlPct },
+              });
+            }
+          } else if (strategy.mode === 'simulation') {
             const simPositions = openPositions.map((p) => ({
               id: p.id,
               symbol: p.symbol,

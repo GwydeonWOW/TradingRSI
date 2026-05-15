@@ -1,5 +1,4 @@
-import { calculateRsi } from '@cryptorsi/indicators';
-import { calculateSma } from '@cryptorsi/indicators';
+import { calculateRsi, calculateSma, detectBullishDivergence, detectBearishDivergence } from '@cryptorsi/indicators';
 import type { StrategyConfig, SignalType } from '@cryptorsi/shared';
 
 export interface MarketData {
@@ -75,10 +74,34 @@ export function evaluateSignal(
     };
   }
 
-  // Check BUY signal
-  if (rsiValue <= entry.rsiBelow) {
-    reasons.push(`RSI ${rsiValue.toFixed(2)} <= ${entry.rsiBelow} (buy threshold)`);
+  // Check bearish divergence exit
+  if (exit.exitOnBearishDivergence && detectBearishDivergence(closes, entry.rsiPeriod ?? 14)) {
+    reasons.push('Bearish divergence detected (sell signal)');
+    return {
+      signalType: 'SELL_SIGNAL',
+      rsiValue,
+      smaValue,
+      price: currentPrice,
+      symbol,
+      timeframe,
+      reasons,
+      timestamp: Date.now(),
+    };
+  }
 
+  const entryMode = entry.entryMode ?? (entry.useRsiDivergence ? 'divergence' : 'rsi_threshold');
+
+  // Check BUY signal based on entry mode
+  let buySignal = false;
+  if (entryMode === 'divergence') {
+    buySignal = detectBullishDivergence(closes, entry.rsiPeriod ?? 14);
+    if (buySignal) reasons.push('Bullish divergence detected (buy signal)');
+  } else {
+    buySignal = rsiValue <= entry.rsiBelow;
+    if (buySignal) reasons.push(`RSI ${rsiValue.toFixed(2)} <= ${entry.rsiBelow} (buy threshold)`);
+  }
+
+  if (buySignal) {
     // SMA filter
     if (entry.useSmaFilter && smaValue !== null) {
       if (currentPrice <= smaValue) {

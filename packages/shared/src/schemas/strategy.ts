@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const EntryConfigSchema = z.object({
+  entryMode: z.enum(['rsi_threshold', 'divergence']).optional(),
   rsiBelow: z.number().min(0).max(100),
   rsiAbove: z.number().min(0).max(100).optional(),
   rsiPeriod: z.number().positive().optional(),
@@ -18,6 +19,7 @@ export const ExitConfigSchema = z.object({
   takeProfitPct: z.number().positive(),
   stopLossPct: z.number().positive(),
   trailingStopPct: z.number().positive().nullable(),
+  exitOnBearishDivergence: z.boolean().optional(),
 });
 
 export const RiskConfigSchema = z.object({
@@ -47,7 +49,7 @@ export const StrategyConfigSchema = z.object({
 export const CreateStrategySchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
-  mode: z.enum(['simulation', 'binance_demo', 'binance_live']),
+  mode: z.enum(['simulation', 'signal_only', 'binance_demo', 'binance_live']),
   environment: z.enum(['demo', 'testnet', 'production']),
   config: StrategyConfigSchema,
 });

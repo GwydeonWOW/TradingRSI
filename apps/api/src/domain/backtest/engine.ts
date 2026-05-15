@@ -1,4 +1,4 @@
-import { calculateRsi, calculateSma } from '@cryptorsi/indicators';
+import { calculateRsi, calculateSma, detectBullishDivergence, detectBearishDivergence } from '@cryptorsi/indicators';
 import type { StrategyConfig } from '@cryptorsi/shared';
 
 export interface BacktestParams {
@@ -124,11 +124,10 @@ export function runBacktest(
         openPosition,
         candle,
         rsiValue,
-        exit.rsiAbove,
-        exit.stopLossPct,
-        exit.takeProfitPct,
-        exit.trailingStopPct,
+        exit,
         commissionRate,
+        closesSoFar,
+        entry.rsiPeriod ?? rsiPeriod,
       );
 
       if (exitResult) {
@@ -142,7 +141,13 @@ export function runBacktest(
 
     // --- Check entry conditions if no position ---
     if (!openPosition && !Number.isNaN(rsiValue)) {
-      const buySignal = rsiValue <= entry.rsiBelow;
+      const entryMode = entry.entryMode ?? (entry.useRsiDivergence ? 'divergence' : 'rsi_threshold');
+      let buySignal: boolean;
+      if (entryMode === 'divergence') {
+        buySignal = detectBullishDivergence(closesSoFar, entry.rsiPeriod ?? rsiPeriod);
+      } else {
+        buySignal = rsiValue <= entry.rsiBelow;
+      }
 
       let smaBlocked = false;
       if (buySignal && entry.useSmaFilter && smaValue !== null) {
@@ -233,39 +238,43 @@ function checkExit(
   position: OpenPosition,
   candle: BacktestCandle,
   rsiValue: number,
-  rsiAbove: number,
-  stopLossPct: number,
-  takeProfitPct: number,
-  trailingStopPct: number | null,
+  exit: StrategyConfig['exit'],
   commissionRate: number,
+  closesSoFar: number[],
+  rsiPeriod: number,
 ): ExitCheckResult | null {
   // Update trailing stop highest price
-  if (trailingStopPct !== null && candle.high > position.highestPrice) {
+  if (exit.trailingStopPct !== null && candle.high > position.highestPrice) {
     position.highestPrice = candle.high;
   }
 
   // Check stop-loss (price dropped below threshold)
-  const stopLossPrice = position.entryPrice * (1 - stopLossPct / 100);
+  const stopLossPrice = position.entryPrice * (1 - exit.stopLossPct / 100);
   if (candle.low <= stopLossPrice) {
     return buildTrade(position, candle, stopLossPrice, 'stop_loss', commissionRate);
   }
 
   // Check trailing stop
-  if (trailingStopPct !== null) {
-    const trailingStopPrice = position.highestPrice * (1 - trailingStopPct / 100);
+  if (exit.trailingStopPct !== null) {
+    const trailingStopPrice = position.highestPrice * (1 - exit.trailingStopPct / 100);
     if (candle.low <= trailingStopPrice && trailingStopPrice > stopLossPrice) {
       return buildTrade(position, candle, trailingStopPrice, 'trailing_stop', commissionRate);
     }
   }
 
   // Check take-profit (price rose above threshold)
-  const takeProfitPrice = position.entryPrice * (1 + takeProfitPct / 100);
+  const takeProfitPrice = position.entryPrice * (1 + exit.takeProfitPct / 100);
   if (candle.high >= takeProfitPrice) {
     return buildTrade(position, candle, takeProfitPrice, 'take_profit', commissionRate);
   }
 
+  // Check bearish divergence exit
+  if (exit.exitOnBearishDivergence && detectBearishDivergence(closesSoFar, rsiPeriod)) {
+    return buildTrade(position, candle, candle.close, 'signal', commissionRate);
+  }
+
   // Check RSI sell signal
-  if (rsiValue >= rsiAbove) {
+  if (rsiValue >= exit.rsiAbove) {
     return buildTrade(position, candle, candle.close, 'signal', commissionRate);
   }
 

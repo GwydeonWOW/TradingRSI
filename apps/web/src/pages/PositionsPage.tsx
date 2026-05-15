@@ -71,6 +71,7 @@ export function PositionsPage() {
         >
           <option value="">Todas las fuentes</option>
           <option value="simulation">Simulation</option>
+          <option value="signal_only">Signal Only</option>
           <option value="binance_demo_dry_run">Binance Demo</option>
         </select>
       </div>
@@ -106,7 +107,14 @@ export function PositionsPage() {
               {positions.map((p) => (
                 <tr key={p.id} className="border-b border-border hover:bg-bg-hover">
                   <td className="px-4 py-3 font-medium text-text-primary">{p.symbol}</td>
-                  <td className="px-4 py-3 text-text-secondary">{p.source}</td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center gap-1.5 text-text-secondary">
+                      {p.source}
+                      {p.source === 'signal_only' && (
+                        <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">PAPER</span>
+                      )}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-text-primary">${p.entryPrice.toFixed(2)}</td>
                   <td className="px-4 py-3 text-text-primary">{p.quantity.toFixed(6)}</td>
                   <td className="px-4 py-3 text-text-primary">${p.investedQuote.toFixed(2)}</td>
