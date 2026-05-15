@@ -1,12 +1,12 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import crypto from 'node:crypto';
+import { TOTP } from 'otpauth';
 import { prisma } from '../../infrastructure/db/prisma.js';
 import { logger } from '../../infrastructure/logger/index.js';
 import { hashPassword, verifyPassword, generateTotpSecret, hashRecoveryCodes } from './helpers.js';
 import { encrypt, decrypt } from '../../infrastructure/encryption/index.js';
 import { createAuditEvent } from '../audit/helpers.js';
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret-change-in-production';
 const JWT_EXPIRES_IN = '7d';
 
 interface JwtPayload {
@@ -15,11 +15,7 @@ interface JwtPayload {
   mfaVerified: boolean;
 }
 
-function signToken(app: any, payload: JwtPayload): string {
-  return app.jwt.sign(payload);
-}
-
-async function getAuth(request: FastifyRequest): Promise<JwtPayload | null> {
+export function verifyToken(request: FastifyRequest): JwtPayload | null {
   try {
     const app = request.server as any;
     const authHeader = request.headers.authorization;
@@ -31,14 +27,14 @@ async function getAuth(request: FastifyRequest): Promise<JwtPayload | null> {
 }
 
 export async function authRoutes(app: FastifyInstance) {
-  await app.register(import('@fastify/jwt'), {
-    secret: JWT_SECRET,
-    sign: { expiresIn: JWT_EXPIRES_IN },
-  });
-
-  // POST /api/auth/register
+  // POST /api/auth/register — only allowed during initial setup
   app.post('/api/auth/register', async (request, reply) => {
     try {
+      const userCount = await prisma.user.count();
+      if (userCount > 0) {
+        return reply.code(403).send({ success: false, error: { code: 'SETUP_COMPLETE', message: 'Setup already completed' } });
+      }
+
       const body = request.body as { email?: string; password?: string };
       if (!body.email || !body.password) {
         return reply.code(400).send({ success: false, error: { code: 'VALIDATION', message: 'Email and password required' } });
@@ -53,20 +49,17 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(409).send({ success: false, error: { code: 'CONFLICT', message: 'Email already registered' } });
       }
 
-      const adminCount = await prisma.user.count({ where: { role: 'admin' } });
-      const role = adminCount === 0 ? 'admin' : 'pending';
-
       const user = await prisma.user.create({
         data: {
           emailLookupHash: lookupHash,
           passwordHash: await hashPassword(body.password),
-          role,
+          role: 'admin',
         },
       });
 
-      await createAuditEvent({ actorType: 'system', eventType: 'user.registered', entityType: 'user', entityId: user.id, payload: { role } });
+      await createAuditEvent({ actorType: 'system', eventType: 'user.registered', entityType: 'user', entityId: user.id, payload: { role: 'admin' } });
 
-      const token = signToken(app, { userId: user.id, role: user.role, mfaVerified: false });
+      const token = (app as any).jwt.sign({ userId: user.id, role: user.role, mfaVerified: false }, { expiresIn: JWT_EXPIRES_IN });
       return reply.code(201).send({ success: true, data: { id: user.id, role: user.role, token } });
     } catch (err) {
       logger.error(err, 'Registration failed');
@@ -75,7 +68,9 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   // POST /api/auth/login
-  app.post('/api/auth/login', async (request, reply) => {
+  app.post('/api/auth/login', {
+    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
     try {
       const body = request.body as { email?: string; password?: string };
       if (!body.email || !body.password) {
@@ -98,11 +93,11 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       if (user.mfaEnabled) {
-        const token = signToken(app, { userId: user.id, role: user.role, mfaVerified: false });
+        const token = (app as any).jwt.sign({ userId: user.id, role: user.role, mfaVerified: false }, { expiresIn: JWT_EXPIRES_IN });
         return reply.code(200).send({ success: true, data: { requiresMfa: true, token } });
       }
 
-      const token = signToken(app, { userId: user.id, role: user.role, mfaVerified: true });
+      const token = (app as any).jwt.sign({ userId: user.id, role: user.role, mfaVerified: true }, { expiresIn: JWT_EXPIRES_IN });
       await createAuditEvent({ actorType: 'user', eventType: 'user.login', entityType: 'user', entityId: user.id, payload: {} });
       return reply.code(200).send({ success: true, data: { id: user.id, role: user.role, mfaEnabled: false, token } });
     } catch (err) {
@@ -114,7 +109,7 @@ export async function authRoutes(app: FastifyInstance) {
   // POST /api/auth/2fa/setup
   app.post('/api/auth/2fa/setup', async (request, reply) => {
     try {
-      const auth = await getAuth(request);
+      const auth = (request as any).auth as JwtPayload | undefined;
       if (!auth) return reply.code(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } });
 
       const { secret, uri } = generateTotpSecret();
@@ -143,7 +138,7 @@ export async function authRoutes(app: FastifyInstance) {
   // POST /api/auth/2fa/verify — enable 2FA
   app.post('/api/auth/2fa/verify', async (request, reply) => {
     try {
-      const auth = await getAuth(request);
+      const auth = (request as any).auth as JwtPayload | undefined;
       if (!auth) return reply.code(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } });
 
       const body = request.body as { code?: string };
@@ -156,7 +151,6 @@ export async function authRoutes(app: FastifyInstance) {
       if (!mfaSecret) return reply.code(400).send({ success: false, error: { code: 'NO_MFA_SETUP', message: 'Setup 2FA first' } });
 
       const secret = decrypt(mfaSecret.secretCiphertext, mfaSecret.secretNonce, mfaSecret.secretTag);
-      const { TOTP } = await import('otpauth');
       const totp = new TOTP({ secret, algorithm: 'SHA1', digits: 6, period: 30 });
       const delta = totp.validate({ token: body.code, window: 1 });
 
@@ -176,7 +170,7 @@ export async function authRoutes(app: FastifyInstance) {
 
       await prisma.user.update({ where: { id: auth.userId }, data: { mfaEnabled: true } });
 
-      const newToken = signToken(app, { userId: auth.userId, role: auth.role, mfaVerified: true });
+      const newToken = (app as any).jwt.sign({ userId: auth.userId, role: auth.role, mfaVerified: true }, { expiresIn: JWT_EXPIRES_IN });
       return reply.code(200).send({ success: true, data: { enabled: true, recoveryCodes: codes, token: newToken } });
     } catch (err) {
       logger.error(err, '2FA verify failed');
@@ -185,9 +179,11 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   // POST /api/auth/2fa/challenge — verify during login
-  app.post('/api/auth/2fa/challenge', async (request, reply) => {
+  app.post('/api/auth/2fa/challenge', {
+    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
     try {
-      const auth = await getAuth(request);
+      const auth = (request as any).auth as JwtPayload | undefined;
       if (!auth) return reply.code(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } });
 
       const body = request.body as { code?: string };
@@ -200,7 +196,6 @@ export async function authRoutes(app: FastifyInstance) {
       if (!mfaSecret) return reply.code(400).send({ success: false, error: { code: 'NO_MFA', message: 'No 2FA configured' } });
 
       const secret = decrypt(mfaSecret.secretCiphertext, mfaSecret.secretNonce, mfaSecret.secretTag);
-      const { TOTP } = await import('otpauth');
       const totp = new TOTP({ secret, algorithm: 'SHA1', digits: 6, period: 30 });
 
       let delta: number | null = totp.validate({ token: body.code, window: 1 });
@@ -218,7 +213,7 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(401).send({ success: false, error: { code: 'INVALID_CODE', message: 'Invalid code' } });
       }
 
-      const newToken = signToken(app, { userId: auth.userId, role: auth.role, mfaVerified: true });
+      const newToken = (app as any).jwt.sign({ userId: auth.userId, role: auth.role, mfaVerified: true }, { expiresIn: JWT_EXPIRES_IN });
       await createAuditEvent({ actorType: 'user', eventType: 'user.mfa_verified', entityType: 'user', entityId: auth.userId, payload: {} });
       return reply.code(200).send({ success: true, data: { verified: true, token: newToken } });
     } catch (err) {
@@ -230,7 +225,7 @@ export async function authRoutes(app: FastifyInstance) {
   // GET /api/auth/me
   app.get('/api/auth/me', async (request, reply) => {
     try {
-      const auth = await getAuth(request);
+      const auth = (request as any).auth as JwtPayload | undefined;
       if (!auth) return reply.code(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } });
 
       const user = await prisma.user.findUnique({ where: { id: auth.userId } });
@@ -248,7 +243,7 @@ export async function authRoutes(app: FastifyInstance) {
   // GET /api/auth/users — admin list
   app.get('/api/auth/users', async (request, reply) => {
     try {
-      const auth = await getAuth(request);
+      const auth = (request as any).auth as JwtPayload | undefined;
       if (!auth || auth.role !== 'admin') return reply.code(403).send({ success: false, error: { code: 'FORBIDDEN', message: 'Admin required' } });
 
       const users = await prisma.user.findMany({
@@ -264,7 +259,7 @@ export async function authRoutes(app: FastifyInstance) {
   // POST /api/auth/users/:id/approve
   app.post('/api/auth/users/:id/approve', async (request, reply) => {
     try {
-      const auth = await getAuth(request);
+      const auth = (request as any).auth as JwtPayload | undefined;
       if (!auth || auth.role !== 'admin') return reply.code(403).send({ success: false, error: { code: 'FORBIDDEN', message: 'Admin required' } });
 
       const { id } = request.params as { id: string };
@@ -283,38 +278,27 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(200).send({ success: true, data: { needsSetup: userCount === 0 } });
     } catch (err) {
       logger.error(err, 'Needs setup check failed');
-      // If DB is unreachable, don't block — return false
       return reply.code(200).send({ success: true, data: { needsSetup: false } });
     }
   });
 
-  // POST /api/auth/force-reset — delete all users (emergency only)
-  app.post('/api/auth/force-reset', async (_request, reply) => {
+  // POST /api/auth/force-reset — requires admin auth (used for recovery)
+  app.post('/api/auth/force-reset', async (request, reply) => {
     try {
+      const auth = (request as any).auth as JwtPayload | undefined;
+      if (!auth || auth.role !== 'admin') {
+        return reply.code(403).send({ success: false, error: { code: 'FORBIDDEN', message: 'Admin required' } });
+      }
+
       await prisma.userRecoveryCode.deleteMany({});
       await prisma.userMfaSecret.deleteMany({});
       await prisma.userSession.deleteMany({});
       await prisma.user.deleteMany({});
-      logger.info('Force reset: all users deleted');
+      logger.info('Force reset: all users deleted by admin');
       return reply.code(200).send({ success: true, data: { message: 'All users deleted' } });
     } catch (err) {
       logger.error(err, 'Force reset failed');
       return reply.code(500).send({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Force reset failed' } });
-    }
-  });
-
-  // POST /api/auth/seed-admin
-  app.post('/api/auth/seed-admin', async (_request, reply) => {
-    try {
-      const adminCount = await prisma.user.count({ where: { role: 'admin' } });
-      if (adminCount > 0) return reply.code(409).send({ success: false, error: { code: 'CONFLICT', message: 'Admin already exists' } });
-
-      const { ensureAdminUser } = await import('./helpers.js');
-      await ensureAdminUser();
-      return reply.code(201).send({ success: true, data: { message: 'Admin created' } });
-    } catch (err) {
-      logger.error(err, 'Seed admin failed');
-      return reply.code(500).send({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to seed admin' } });
     }
   });
 }

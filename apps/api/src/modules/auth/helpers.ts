@@ -27,8 +27,11 @@ export function hashRecoveryCodes(count = 8): string[] {
 }
 
 export async function ensureAdminUser(): Promise<void> {
-  const adminEmail = process.env.ADMIN_EMAIL ?? 'admin@cryptorsi.local';
-  const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminEmail || !adminPassword) {
+    throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD environment variables are required for seeding');
+  }
   const lookupHash = crypto.createHash('sha256').update(adminEmail).digest('hex');
 
   const existing = await prisma.user.findUnique({ where: { emailLookupHash: lookupHash } });

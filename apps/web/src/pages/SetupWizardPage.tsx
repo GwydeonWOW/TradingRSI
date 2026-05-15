@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/auth.ts';
 import { useAuth } from '../context/AuthContext.tsx';
@@ -15,6 +15,12 @@ export function SetupWizardPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    authApi.needsSetup()
+      .then((res) => { if (!res.data.needsSetup) navigate('/login', { replace: true }); })
+      .catch(() => {});
+  }, [navigate]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
