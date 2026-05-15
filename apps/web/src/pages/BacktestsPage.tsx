@@ -515,7 +515,7 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
           <div>
             <h3 className="mb-2 text-sm font-medium text-text-secondary">Curva de Capital</h3>
             {result.equityCurve.length > 0 ? (
-              <EquityCurveChart equity={result.equityCurve.map((e) => ({ time: e.time, equity: e.equity }))} height={300} />
+              <EquityCurveChart equity={result.equityCurve.map((e) => ({ time: Math.floor(e.time / 1000), equity: e.equity }))} height={300} />
             ) : (
               <p className="text-sm text-text-muted">Sin datos de curva de capital.</p>
             )}

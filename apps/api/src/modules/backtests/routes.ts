@@ -443,14 +443,45 @@ function mergeEquityCurves(
   if (curves.length === 0) return [];
   if (curves.length === 1) return curves[0]!;
 
-  // Merge by time: sum PnL from all curves relative to initial
-  const byTime = new Map<number, number>();
+  // Each symbol's curve tracks capital + unrealizedPnl independently.
+  // Since each run starts with the full initialCapital, the delta from
+  // initial represents each symbol's contribution. We sum those deltas
+  // to get the combined equity, but cap at one initialCapital base.
+  const allTimes = new Set<number>();
   for (const curve of curves) {
     for (const point of curve) {
-      byTime.set(point.time, (byTime.get(point.time) ?? 0) + point.equity - initialCapital);
+      allTimes.add(point.time);
     }
   }
 
-  const times = Array.from(byTime.keys()).sort((a, b) => a - b);
-  return times.map((t) => ({ time: t, equity: initialCapital + (byTime.get(t) ?? 0) }));
+  const sortedTimes = Array.from(allTimes).sort((a, b) => a - b);
+
+  // Build per-curve time->equity maps with forward-fill for missing times
+  const curveMaps = curves.map((curve) => {
+    const map = new Map<number, number>();
+    for (const point of curve) {
+      map.set(point.time, point.equity);
+    }
+    return map;
+  });
+
+  const result: Array<{ time: number; equity: number }> = [];
+  const lastKnown = new Array<number | null>(curves.length).fill(null);
+
+  for (const t of sortedTimes) {
+    let totalDelta = 0;
+    for (let c = 0; c < curves.length; c++) {
+      const val = curveMaps[c]!.get(t);
+      if (val !== undefined) {
+        lastKnown[c] = val;
+      }
+      // Delta from initial = this symbol's PnL contribution
+      if (lastKnown[c] !== null) {
+        totalDelta += lastKnown[c]! - initialCapital;
+      }
+    }
+    result.push({ time: t, equity: initialCapital + totalDelta });
+  }
+
+  return result;
 }
