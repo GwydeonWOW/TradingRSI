@@ -457,6 +457,8 @@ export async function binanceRoutes(app: FastifyInstance) {
       symbol?: string;
       interval?: string;
       limit?: string;
+      startTime?: string;
+      endTime?: string;
     };
 
     if (!query.symbol || !query.interval) {
@@ -473,6 +475,8 @@ export async function binanceRoutes(app: FastifyInstance) {
         interval: query.interval,
       });
       if (query.limit) params.set('limit', query.limit);
+      if (query.startTime) params.set('startTime', query.startTime);
+      if (query.endTime) params.set('endTime', query.endTime);
 
       const response = await fetch(`${getBaseUrl()}/v3/klines?${params}`);
       if (!response.ok) {

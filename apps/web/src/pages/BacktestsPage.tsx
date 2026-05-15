@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { strategiesApi, backtestsApi } from '../api/strategies.ts';
+import { tradingApi } from '../api/trading.ts';
 import type { StrategyListItem, BacktestResult, BacktestMetrics, BacktestTrade } from '../api/strategies.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { EquityCurveChart } from '../components/EquityCurveChart.tsx';
+import { CandlestickChart, type CandleData } from '../components/CandlestickChart.tsx';
 import { EmptyState } from '../components/EmptyState.tsx';
 
 const INTERVALS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
@@ -119,8 +121,57 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
   );
 }
 
-function TradesTable({ trades }: { trades: BacktestTrade[] }) {
+function TradesTable({ trades, symbol, interval }: { trades: BacktestTrade[]; symbol: string; interval: string }) {
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [chartData, setChartData] = useState<CandleData[]>([]);
+  const [chartLoading, setChartLoading] = useState(false);
+
   if (trades.length === 0) return null;
+
+  async function expandTrade(idx: number) {
+    if (expandedIdx === idx) {
+      setExpandedIdx(null);
+      return;
+    }
+    setExpandedIdx(idx);
+    setChartData([]);
+    setChartLoading(true);
+
+    const t = trades[idx]!;
+    const padMs = 6 * 60 * 60 * 1000; // 6h padding around trade
+    try {
+      const res = await tradingApi.getKlines({
+        symbol,
+        interval,
+        startTime: t.entryTime - padMs,
+        endTime: t.exitTime + padMs,
+        limit: 500,
+      });
+      setChartData(
+        res.data.map((k) => ({
+          time: Math.floor(k.openTime / 1000),
+          open: parseFloat(k.open),
+          high: parseFloat(k.high),
+          low: parseFloat(k.low),
+          close: parseFloat(k.close),
+          volume: parseFloat(k.volume),
+        })),
+      );
+    } catch {
+      setChartData([]);
+    } finally {
+      setChartLoading(false);
+    }
+  }
+
+  const exitReasonColor: Record<string, string> = {
+    signal: '#f59e0b',
+    stop_loss: '#ef4444',
+    take_profit: '#10b981',
+    trailing_stop: '#8b5cf6',
+    end_of_data: '#6b7280',
+  };
+
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-left text-sm">
@@ -136,33 +187,93 @@ function TradesTable({ trades }: { trades: BacktestTrade[] }) {
             <th className="px-4 py-3 font-medium text-text-secondary">PnL %</th>
             <th className="px-4 py-3 font-medium text-text-secondary">Razon</th>
             <th className="px-4 py-3 font-medium text-text-secondary">RSI</th>
+            <th className="px-4 py-3 font-medium text-text-secondary"></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
           {trades.map((t, i) => (
-            <tr key={i} className="hover:bg-bg-hover">
-              <td className="px-4 py-2 text-text-secondary text-xs">{formatDateTime(t.entryTime)}</td>
-              <td className="px-4 py-2 text-text-secondary text-xs">{formatDateTime(t.exitTime)}</td>
-              <td className="px-4 py-2">
-                <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${t.side === 'BUY' ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger'}`}>
-                  {t.side}
-                </span>
-              </td>
-              <td className="px-4 py-2 text-text-primary font-mono">{smartPrice(t.entryPrice)}</td>
-              <td className="px-4 py-2 text-text-primary font-mono">{smartPrice(t.exitPrice)}</td>
-              <td className="px-4 py-2 text-text-primary font-mono">{smartPrice(t.quantity)}</td>
-              <td className={`px-4 py-2 font-medium ${pnlColor(t.pnl)}`}>
-                {pnlSign(t.pnl)}{t.pnl.toFixed(2)}
-              </td>
-              <td className={`px-4 py-2 ${pnlColor(t.pnlPct)}`}>
-                {pnlSign(t.pnlPct)}{t.pnlPct.toFixed(2)}%
-              </td>
-              <td className="px-4 py-2 text-text-muted text-xs">{t.exitReason}</td>
-              <td className="px-4 py-2 text-xs text-text-muted">
-                {(t as any).entryRsi != null ? (t as any).entryRsi.toFixed(1) : '-'}
-                {(t as any).exitRsi != null ? ` → ${(t as any).exitRsi.toFixed(1)}` : ''}
-              </td>
-            </tr>
+            <>
+              <tr key={i} className={`hover:bg-bg-hover ${expandedIdx === i ? 'bg-bg-hover' : ''}`}>
+                <td className="px-4 py-2 text-text-secondary text-xs">{formatDateTime(t.entryTime)}</td>
+                <td className="px-4 py-2 text-text-secondary text-xs">{formatDateTime(t.exitTime)}</td>
+                <td className="px-4 py-2">
+                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${t.side === 'BUY' ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger'}`}>
+                    {t.side}
+                  </span>
+                </td>
+                <td className="px-4 py-2 text-text-primary font-mono">{smartPrice(t.entryPrice)}</td>
+                <td className="px-4 py-2 text-text-primary font-mono">{smartPrice(t.exitPrice)}</td>
+                <td className="px-4 py-2 text-text-primary font-mono">{smartPrice(t.quantity)}</td>
+                <td className={`px-4 py-2 font-medium ${pnlColor(t.pnl)}`}>
+                  {pnlSign(t.pnl)}{t.pnl.toFixed(2)}
+                </td>
+                <td className={`px-4 py-2 ${pnlColor(t.pnlPct)}`}>
+                  {pnlSign(t.pnlPct)}{t.pnlPct.toFixed(2)}%
+                </td>
+                <td className="px-4 py-2 text-text-muted text-xs">{t.exitReason}</td>
+                <td className="px-4 py-2 text-xs text-text-muted">
+                  {(t as any).entryRsi != null ? (t as any).entryRsi.toFixed(1) : '-'}
+                  {(t as any).exitRsi != null ? ` → ${(t as any).exitRsi.toFixed(1)}` : ''}
+                </td>
+                <td className="px-4 py-2">
+                  <button
+                    type="button"
+                    onClick={() => expandTrade(i)}
+                    className="rounded px-2 py-1 text-xs font-medium text-accent hover:bg-accent/10"
+                  >
+                    {expandedIdx === i ? 'Cerrar' : 'Ver'}
+                  </button>
+                </td>
+              </tr>
+              {expandedIdx === i && (
+                <tr key={`${i}-chart`}>
+                  <td colSpan={11} className="bg-bg-primary p-4">
+                    {chartLoading ? (
+                      <div className="flex h-[300px] items-center justify-center">
+                        <LoadingSpinner />
+                      </div>
+                    ) : chartData.length > 0 ? (
+                      <div>
+                        <div className="mb-2 flex items-center gap-4 text-xs">
+                          <span className="text-text-muted">
+                            {formatDateTime(t.entryTime)} → {formatDateTime(t.exitTime)}
+                          </span>
+                          <span className={`font-medium ${pnlColor(t.pnl)}`}>
+                            {pnlSign(t.pnl)}{t.pnl.toFixed(2)} USDT
+                          </span>
+                          <span style={{ color: exitReasonColor[t.exitReason] ?? '#6b7280' }}>
+                            {t.exitReason}
+                          </span>
+                        </div>
+                        <CandlestickChart
+                          data={chartData}
+                          height={300}
+                          showVolume={false}
+                          markers={[
+                            {
+                              time: Math.floor(t.entryTime / 1000),
+                              position: 'belowBar',
+                              color: '#10b981',
+                              shape: 'arrowUp',
+                              text: `BUY ${smartPrice(t.entryPrice)}`,
+                            },
+                            {
+                              time: Math.floor(t.exitTime / 1000),
+                              position: 'aboveBar',
+                              color: exitReasonColor[t.exitReason] ?? '#f59e0b',
+                              shape: 'arrowDown',
+                              text: `${t.exitReason.toUpperCase()} ${smartPrice(t.exitPrice)}`,
+                            },
+                          ]}
+                        />
+                      </div>
+                    ) : (
+                      <p className="py-8 text-center text-sm text-text-muted">No se pudieron cargar los datos del grafico.</p>
+                    )}
+                  </td>
+                </tr>
+              )}
+            </>
           ))}
         </tbody>
       </table>
@@ -413,7 +524,7 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
           {/* Trades */}
           <div>
             <h3 className="mb-2 text-sm font-medium text-text-secondary">Trades ({result.trades.length})</h3>
-            <TradesTable trades={result.trades} />
+            <TradesTable trades={result.trades} symbol={(result.symbols ?? [])[0] ?? strategySymbols[0] ?? ''} interval={interval} />
           </div>
         </div>
       )}

@@ -4,7 +4,8 @@ import { liquidityApi } from '../api/liquidity.ts';
 import { getSymbols } from '../api/config.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { CandlestickChart, type CandleData } from '../components/CandlestickChart.tsx';
-import { detectRSIDivergence } from '../utils/rsiDivergence.ts';
+import { detectRSIDivergence, calculateRSI as calculateRSIFull } from '../utils/rsiDivergence.ts';
+import { RsiChart, type RsiDataPoint } from '../components/RsiChart.tsx';
 
 const TIMEFRAMES = [
   { value: '1m', label: '1m' },
@@ -170,6 +171,15 @@ export function MarketPage() {
     const closes = chartData.map((d) => d.close);
     return detectRSIDivergence(times, closes);
   }, [chartData, showDivergence]);
+
+  const rsiChartData: RsiDataPoint[] = useMemo(() => {
+    if (chartData.length < 16) return [];
+    const closes = chartData.map((d) => d.close);
+    const rsiValues = calculateRSIFull(closes, 14);
+    return chartData
+      .map((d, i) => ({ time: d.time, value: rsiValues[i]! }))
+      .filter((p) => p.value !== null);
+  }, [chartData]);
 
   if (loading) {
     return (
@@ -345,7 +355,14 @@ export function MarketPage() {
                 <LoadingSpinner />
               </div>
             ) : chartData.length > 0 ? (
-              <CandlestickChart data={chartData} height={400} showVolume markers={divergenceMarkers} />
+              <>
+                <CandlestickChart data={chartData} height={400} showVolume markers={divergenceMarkers} />
+                {rsiChartData.length > 0 && (
+                  <div className="mt-1">
+                    <RsiChart data={rsiChartData} height={150} />
+                  </div>
+                )}
+              </>
             ) : (
               <p className="text-sm text-text-muted">Sin datos del gráfico.</p>
             )}

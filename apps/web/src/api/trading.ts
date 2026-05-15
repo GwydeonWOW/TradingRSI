@@ -155,8 +155,12 @@ export const tradingApi = {
   },
   reconcile: () =>
     apiPost<{ success: boolean; data: ReconcileResult }>('/binance/reconcile'),
-  getKlines: (params: { symbol: string; interval: string }) => {
-    const query = new URLSearchParams(params).toString();
+  getKlines: (params: { symbol: string; interval: string; startTime?: number; endTime?: number; limit?: number }) => {
+    const entries: Record<string, string> = { symbol: params.symbol, interval: params.interval };
+    if (params.startTime) entries.startTime = String(params.startTime);
+    if (params.endTime) entries.endTime = String(params.endTime);
+    if (params.limit) entries.limit = String(params.limit);
+    const query = new URLSearchParams(entries).toString();
     return apiGet<{ success: boolean; data: Array<{ openTime: number; open: string; high: string; low: string; close: string; volume: string; closeTime: number }> }>(`/binance/klines?${query}`);
   },
   getStreamStatus: () =>
