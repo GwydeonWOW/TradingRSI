@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { tradingApi } from '../api/trading.ts';
 import { liquidityApi } from '../api/liquidity.ts';
+import { getSymbols } from '../api/config.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { CandlestickChart, type CandleData } from '../components/CandlestickChart.tsx';
 
-const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'] as const;
 const TIMEFRAMES = [
   { value: '1m', label: '1m' },
   { value: '5m', label: '5m' },
@@ -44,14 +44,18 @@ export function MarketPage() {
   const [connected, setConnected] = useState<boolean | null>(null);
   const [environment, setEnvironment] = useState<string>('demo');
   const [loading, setLoading] = useState(true);
-  const [prices, setPrices] = useState<PriceData[]>(
-    SYMBOLS.map((s) => ({ symbol: s, price: null, rsi: null, change24h: null, liquidityScore: null, liquidityState: null, error: false }))
-  );
+  const [symbols] = useState<string[]>(getSymbols);
+  const [prices, setPrices] = useState<PriceData[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [selectedChart, setSelectedChart] = useState<string>('BTCUSDT');
+  const [selectedChart, setSelectedChart] = useState<string>(symbols[0] ?? 'BTCUSDT');
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1h');
   const [chartData, setChartData] = useState<CandleData[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
+
+  // Initialize prices from symbols
+  useEffect(() => {
+    setPrices(symbols.map((s) => ({ symbol: s, price: null, rsi: null, change24h: null, liquidityScore: null, liquidityState: null, error: false })));
+  }, [symbols]);
 
   // Fetch price cards data
   const fetchPrices = useCallback(async () => {
@@ -67,7 +71,7 @@ export function MarketPage() {
       }
 
       const results = await Promise.allSettled(
-        SYMBOLS.map(async (symbol) => {
+        symbols.map(async (symbol) => {
           const res = await tradingApi.getKlines({ symbol, interval: '1h' });
           const klines = res.data;
           if (klines.length > 0) {
@@ -86,14 +90,14 @@ export function MarketPage() {
 
       setPrices(
         results.map((r, i) =>
-          r.status === 'fulfilled' ? r.value : ({ symbol: SYMBOLS[i]!, price: null, rsi: null, change24h: null, liquidityScore: null, liquidityState: null, error: true } as PriceData)
+          r.status === 'fulfilled' ? r.value : ({ symbol: symbols[i]!, price: null, rsi: null, change24h: null, liquidityScore: null, liquidityState: null, error: true } as PriceData)
         )
       );
       setError(null);
 
       // Fetch liquidity scores (non-blocking)
       Promise.allSettled(
-        SYMBOLS.map(async (symbol) => {
+        symbols.map(async (symbol) => {
           try {
             const res = await liquidityApi.getCurrent(symbol);
             return { symbol, score: res.data.score, state: res.data.state };
@@ -199,7 +203,7 @@ export function MarketPage() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {prices.map((p) => (
+            {prices.length > 0 ? prices.map((p) => (
               <div
                 key={p.symbol}
                 className={`cursor-pointer rounded-lg border bg-bg-secondary p-4 transition-colors ${
@@ -267,7 +271,9 @@ export function MarketPage() {
                   </div>
                 )}
               </div>
-            ))}
+            )) : (
+              <p className="text-sm text-text-muted">No hay simbolos configurados.</p>
+            )}
           </div>
 
           <div className="mt-6 rounded-lg border border-border bg-bg-secondary p-4">
@@ -278,7 +284,7 @@ export function MarketPage() {
               <div className="flex gap-2">
                 {/* Symbol selector */}
                 <div className="flex gap-1">
-                  {SYMBOLS.map((sym) => (
+                  {symbols.map((sym) => (
                     <button
                       key={sym}
                       type="button"

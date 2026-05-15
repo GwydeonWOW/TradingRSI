@@ -1,4 +1,19 @@
 import { NavLink } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  Bot,
+  TrendingUp,
+  ClipboardList,
+  Radio,
+  Settings,
+  Shield,
+  ShieldCheck,
+  Users,
+  ScrollText,
+  Droplets,
+  FlaskConical,
+  Cog,
+} from 'lucide-react';
 
 interface SidebarProps {
   open: boolean;
@@ -8,7 +23,7 @@ interface SidebarProps {
 interface NavItem {
   label: string;
   path: string;
-  icon: string;
+  icon: React.ReactNode;
 }
 
 interface NavGroup {
@@ -20,39 +35,39 @@ const groups: NavGroup[] = [
   {
     title: 'Monitorizacion',
     items: [
-      { label: 'Dashboard', path: '/dashboard', icon: '📊' },
-      { label: 'Bot en vivo', path: '/bot', icon: '🤖' },
-      { label: 'Posiciones', path: '/positions', icon: '📈' },
-      { label: 'Ordenes', path: '/orders', icon: '📋' },
-      { label: 'Senales', path: '/signals', icon: '📡' },
+      { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={18} /> },
+      { label: 'Bot en vivo', path: '/bot', icon: <Bot size={18} /> },
+      { label: 'Posiciones', path: '/positions', icon: <TrendingUp size={18} /> },
+      { label: 'Ordenes', path: '/orders', icon: <ClipboardList size={18} /> },
+      { label: 'Senales', path: '/signals', icon: <Radio size={18} /> },
     ],
   },
   {
     title: 'Estrategias',
     items: [
-      { label: 'Estrategias', path: '/strategies', icon: '⚙️' },
-      { label: 'Backtesting', path: '/backtests', icon: '🧪' },
+      { label: 'Estrategias', path: '/strategies', icon: <Cog size={18} /> },
+      { label: 'Backtesting', path: '/backtests', icon: <FlaskConical size={18} /> },
     ],
   },
   {
     title: 'Mercado',
     items: [
-      { label: 'Datos de mercado', path: '/market', icon: '🌍' },
-      { label: 'Liquidity Health', path: '/liquidity', icon: '💧' },
+      { label: 'Datos de mercado', path: '/market', icon: <TrendingUp size={18} /> },
+      { label: 'Liquidity Health', path: '/liquidity', icon: <Droplets size={18} /> },
     ],
   },
   {
     title: 'Configuracion',
     items: [
-      { label: 'Settings', path: '/settings', icon: '🔧' },
-      { label: 'Seguridad 2FA', path: '/settings/2fa', icon: '🔐' },
-      { label: 'Usuarios', path: '/users', icon: '👥' },
+      { label: 'Settings', path: '/settings', icon: <Settings size={18} /> },
+      { label: 'Seguridad 2FA', path: '/settings/2fa', icon: <ShieldCheck size={18} /> },
+      { label: 'Usuarios', path: '/users', icon: <Users size={18} /> },
     ],
   },
   {
     title: 'Auditoria',
     items: [
-      { label: 'Eventos', path: '/audit', icon: '📜' },
+      { label: 'Eventos', path: '/audit', icon: <ScrollText size={18} /> },
     ],
   },
 ];
@@ -60,7 +75,6 @@ const groups: NavGroup[] = [
 export function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <>
-      {/* Mobile overlay */}
       {open && (
         <div
           className="fixed inset-0 z-40 bg-black/50 md:hidden"
@@ -74,13 +88,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         />
       )}
 
-      {/* Sidebar panel */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-bg-secondary transition-transform duration-200 md:z-30 ${
           open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        {/* Sidebar header (mobile close) */}
         <div className="flex h-14 items-center justify-between border-b border-border px-4 md:justify-end">
           <span className="text-sm font-semibold text-text-primary md:hidden">Menu</span>
           <button
@@ -95,7 +107,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </button>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           {groups.map((group) => (
             <div key={group.title} className="mb-4">
@@ -116,9 +127,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                         }`
                       }
                     >
-                      <span className="text-base" role="img" aria-hidden="true">
-                        {item.icon}
-                      </span>
+                      {item.icon}
                       {item.label}
                     </NavLink>
                   </li>

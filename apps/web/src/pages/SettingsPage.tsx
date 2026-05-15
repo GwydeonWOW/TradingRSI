@@ -9,6 +9,7 @@ import {
   type BinanceCredentialInfo,
 } from '../api/trading.ts';
 import { useAuth } from '../context/AuthContext.tsx';
+import { useSymbols, getAllAvailableSymbols } from '../api/config.ts';
 
 const inputClass =
   'w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
@@ -242,8 +243,12 @@ export function SettingsPage() {
         </div>
 
         <div className="rounded-lg border border-border bg-bg-secondary p-4">
-          <h2 className="mb-2 text-sm font-medium text-text-primary">Riesgo Global</h2>
-          <p className="text-sm text-text-muted">Parametros de riesgo no configurados.</p>
+          <h2 className="mb-3 text-sm font-medium text-text-primary">Tokens Configurados</h2>
+          <p className="mb-3 text-xs text-text-muted">
+            Selecciona los tokens que apareceran en las paginas de mercado, dashboard y bot.
+            Para Liquidity Health se usan los 4 principales (BTC, ETH, SOL, BNB).
+          </p>
+          <TokenConfig />
         </div>
 
         {user?.role === 'admin' && (
@@ -262,6 +267,72 @@ export function SettingsPage() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function TokenConfig() {
+  const { symbols, addSymbol, removeSymbol } = useSymbols();
+  const available = getAllAvailableSymbols();
+  const [customInput, setCustomInput] = useState('');
+
+  function handleAdd() {
+    const val = customInput.trim().toUpperCase();
+    if (val && !symbols.includes(val)) {
+      addSymbol(val);
+      setCustomInput('');
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {available.map((sym) => {
+          const active = symbols.includes(sym);
+          return (
+            <button
+              key={sym}
+              type="button"
+              onClick={() => active ? removeSymbol(sym) : addSymbol(sym)}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                active
+                  ? 'bg-accent text-white'
+                  : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+              }`}
+            >
+              {sym.slice(0, -4)}/{sym.slice(-4)}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 flex gap-2">
+        <input
+          type="text"
+          value={customInput}
+          onChange={(e) => setCustomInput(e.target.value.toUpperCase())}
+          placeholder="CUSTOMUSDT"
+          className="flex-1 rounded-md border border-border bg-bg-primary px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+        />
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={!customInput.trim()}
+          className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+        >
+          Añadir
+        </button>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {symbols.map((sym) => (
+          <span key={sym} className="inline-flex items-center gap-1 rounded-full bg-bg-tertiary px-2.5 py-1 text-xs font-medium text-text-primary">
+            {sym}
+            <button type="button" onClick={() => removeSymbol(sym)} className="text-text-muted hover:text-danger">×</button>
+          </span>
+        ))}
       </div>
     </div>
   );

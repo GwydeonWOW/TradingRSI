@@ -25,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await authApi.me();
       setUser(res.data);
     } catch {
+      // Token invalid or auth not available — app works without auth
       localStorage.removeItem('token');
       setToken(null);
       setUser(null);
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) {
       fetchMe(token).finally(() => setLoading(false));
     } else {
+      // No token — app works without auth, no blocking
       setLoading(false);
     }
   }, [token, fetchMe]);

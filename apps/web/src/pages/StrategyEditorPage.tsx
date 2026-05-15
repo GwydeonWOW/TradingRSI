@@ -5,6 +5,8 @@ import { strategiesApi } from '../api/strategies.ts';
 import type { StrategyDetail } from '../api/strategies.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 
+const TIMEFRAME_OPTIONS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'] as const;
+
 const defaultConfig: StrategyConfig = {
   symbols: ['BTCUSDT', 'ETHUSDT'],
   timeframes: ['15m', '1h', '4h'],
@@ -36,18 +38,10 @@ const defaultConfig: StrategyConfig = {
   },
 };
 
-const STEPS = [
-  'General',
-  'Simbolos y Timeframes',
-  'Reglas de Entrada',
-  'Reglas de Salida',
-  'Riesgo y Capital',
-  'Ejecucion',
-  'Resumen',
-];
-
-const COMMON_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'DOTUSDT'];
-const AVAILABLE_TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
+const inputClass =
+  'w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
+const labelClass = 'mb-1 block text-sm font-medium text-text-secondary';
+const sectionTitle = 'mb-3 text-sm font-medium text-text-secondary';
 
 export function StrategyEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -55,9 +49,7 @@ export function StrategyEditorPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState(0);
   const [config, setConfig] = useState<StrategyConfig>(defaultConfig);
-  const [mode, setMode] = useState<string>('binance_demo');
 
   useEffect(() => {
     if (!id) return;
@@ -69,7 +61,6 @@ export function StrategyEditorPage() {
     try {
       const result = await strategiesApi.get(id!);
       const s: StrategyDetail = result.data;
-      // Load latest version config
       if (s.versions.length > 0) {
         const latestVersion = s.versions[s.versions.length - 1]!;
         const versionRes = await strategiesApi.getVersion(id!, latestVersion.id);
@@ -78,7 +69,7 @@ export function StrategyEditorPage() {
         setConfig((prev) => ({ ...prev, symbols: s.symbols }));
       }
     } catch {
-      // Use defaults if strategy fetch fails
+      // Use defaults
     } finally {
       setLoading(false);
     }
@@ -86,6 +77,12 @@ export function StrategyEditorPage() {
 
   function updateConfig<K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) {
     setConfig((prev) => ({ ...prev, [section]: value }));
+  }
+
+  function toggleTimeframe(tf: string) {
+    const current = config.timeframes;
+    const next = current.includes(tf) ? current.filter((t) => t !== tf) : [...current, tf];
+    if (next.length > 0) updateConfig('timeframes', next);
   }
 
   async function handleSave() {
@@ -101,24 +98,6 @@ export function StrategyEditorPage() {
     }
   }
 
-  function toggleSymbol(symbol: string) {
-    setConfig((prev) => ({
-      ...prev,
-      symbols: prev.symbols.includes(symbol)
-        ? prev.symbols.filter((s) => s !== symbol)
-        : [...prev.symbols, symbol],
-    }));
-  }
-
-  function toggleTimeframe(tf: string) {
-    setConfig((prev) => ({
-      ...prev,
-      timeframes: prev.timeframes.includes(tf)
-        ? prev.timeframes.filter((t) => t !== tf)
-        : [...prev.timeframes, tf],
-    }));
-  }
-
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -131,512 +110,279 @@ export function StrategyEditorPage() {
         &larr; Volver a la estrategia
       </button>
 
-      <h1 className="mb-6 text-xl font-bold text-text-primary">Editor de Estrategia</h1>
+      <h1 className="mb-6 text-xl font-bold text-text-primary">Editar Estrategia</h1>
 
-      {/* Error */}
       {error && (
         <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
 
-      {/* Step indicator */}
-      <div className="mb-6 flex gap-1">
-        {STEPS.map((label, i) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => setStep(i)}
-            className={`flex-1 rounded-t-md px-2 py-2 text-xs font-medium transition-colors ${
-              i === step
-                ? 'bg-accent text-white'
-                : 'bg-bg-tertiary text-text-muted hover:bg-bg-hover'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Left column */}
+        <div className="space-y-6">
+          <div className="rounded-lg border border-border bg-bg-secondary p-6">
+            <h2 className={sectionTitle}>Simbolos y Timeframes</h2>
+            <div className="space-y-4">
+              <div>
+                <label className={labelClass}>Simbolos (separados por coma)</label>
+                <input
+                  type="text"
+                  className={inputClass}
+                  value={config.symbols.join(', ')}
+                  onChange={(e) =>
+                    updateConfig(
+                      'symbols',
+                      e.target.value.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
+                    )
+                  }
+                  placeholder="BTCUSDT, ETHUSDT, SOLUSDT"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Timeframes</label>
+                <div className="flex flex-wrap gap-2">
+                  {TIMEFRAME_OPTIONS.map((tf) => (
+                    <button
+                      key={tf}
+                      type="button"
+                      onClick={() => toggleTimeframe(tf)}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                        config.timeframes.includes(tf)
+                          ? 'bg-accent text-white'
+                          : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                      }`}
+                    >
+                      {tf}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-bg-secondary p-6">
+            <h2 className={sectionTitle}>Gestion de Riesgo</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Cantidad por trade (USDT)</label>
+                  <input
+                    type="number" min={1} step={1} className={inputClass}
+                    value={config.risk.quoteAmountPerTrade}
+                    onChange={(e) => updateConfig('risk', { ...config.risk, quoteAmountPerTrade: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Max posiciones abiertas</label>
+                  <input
+                    type="number" min={1} className={inputClass}
+                    value={config.risk.maxOpenPositions}
+                    onChange={(e) => updateConfig('risk', { ...config.risk, maxOpenPositions: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Max por simbolo</label>
+                  <input
+                    type="number" min={1} className={inputClass}
+                    value={config.risk.maxPositionsPerSymbol}
+                    onChange={(e) => updateConfig('risk', { ...config.risk, maxPositionsPerSymbol: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Exposicion max (USDT)</label>
+                  <input
+                    type="number" min={1} className={inputClass}
+                    value={config.risk.maxTotalExposureQuote}
+                    onChange={(e) => updateConfig('risk', { ...config.risk, maxTotalExposureQuote: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Perdida diaria max (%)</label>
+                  <input
+                    type="number" min={0} max={100} step={0.5} className={inputClass}
+                    value={config.risk.maxDailyLossPct}
+                    onChange={(e) => updateConfig('risk', { ...config.risk, maxDailyLossPct: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Cooldown (min)</label>
+                  <input
+                    type="number" min={0} className={inputClass}
+                    value={config.risk.cooldownMinutes}
+                    onChange={(e) => updateConfig('risk', { ...config.risk, cooldownMinutes: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right column */}
+        <div className="space-y-6">
+          <div className="rounded-lg border border-border bg-bg-secondary p-6">
+            <h2 className={sectionTitle}>Entrada</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>RSI entrada (below)</label>
+                  <input
+                    type="number" min={0} max={100} className={inputClass}
+                    value={config.entry.rsiBelow}
+                    onChange={(e) => updateConfig('entry', { ...config.entry, rsiBelow: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Cooldown entrada (min)</label>
+                  <input
+                    type="number" min={0} className={inputClass}
+                    value={config.entry.cooldownMinutes}
+                    onChange={(e) => updateConfig('entry', { ...config.entry, cooldownMinutes: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm text-text-primary">
+                  <input
+                    type="checkbox"
+                    checked={config.entry.useSmaFilter}
+                    onChange={(e) => updateConfig('entry', { ...config.entry, useSmaFilter: e.target.checked })}
+                    className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
+                  />
+                  Filtro SMA
+                </label>
+                <label className="flex items-center gap-2 text-sm text-text-primary">
+                  <input
+                    type="checkbox"
+                    checked={config.entry.requireMultiTimeframeConfirmation}
+                    onChange={(e) => updateConfig('entry', { ...config.entry, requireMultiTimeframeConfirmation: e.target.checked })}
+                    className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
+                  />
+                  Confirmacion multi-timeframe
+                </label>
+              </div>
+              {config.entry.useSmaFilter && (
+                <div>
+                  <label className={labelClass}>Periodo SMA</label>
+                  <input
+                    type="number" min={1} className={inputClass}
+                    value={config.entry.smaPeriod}
+                    onChange={(e) => updateConfig('entry', { ...config.entry, smaPeriod: Number(e.target.value) })}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-bg-secondary p-6">
+            <h2 className={sectionTitle}>Salida</h2>
+            <div className="space-y-4">
+              <div>
+                <label className={labelClass}>RSI salida (above)</label>
+                <input
+                  type="number" min={0} max={100} className={inputClass}
+                  value={config.exit.rsiAbove}
+                  onChange={(e) => updateConfig('exit', { ...config.exit, rsiAbove: Number(e.target.value) })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Take Profit (%)</label>
+                  <input
+                    type="number" step={0.1} min={0} className={inputClass}
+                    value={config.exit.takeProfitPct}
+                    onChange={(e) => updateConfig('exit', { ...config.exit, takeProfitPct: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Stop Loss (%)</label>
+                  <input
+                    type="number" step={0.1} min={0} className={inputClass}
+                    value={config.exit.stopLossPct}
+                    onChange={(e) => updateConfig('exit', { ...config.exit, stopLossPct: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Trailing Stop (%) — dejar vacio para desactivar</label>
+                <input
+                  type="number" step={0.1} min={0} className={inputClass}
+                  value={config.exit.trailingStopPct ?? ''}
+                  onChange={(e) =>
+                    updateConfig('exit', {
+                      ...config.exit,
+                      trailingStopPct: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                  placeholder="Desactivado"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-bg-secondary p-6">
+            <h2 className={sectionTitle}>Ejecucion</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Tipo de orden</label>
+                  <select className={inputClass} value={config.execution.orderType} disabled>
+                    <option value="MARKET">MARKET</option>
+                  </select>
+                </div>
+                <div className="flex flex-col justify-end">
+                  <label className="flex items-center gap-2 text-sm text-text-primary">
+                    <input
+                      type="checkbox"
+                      checked={config.execution.useOrderTestBeforeRealOrder}
+                      onChange={(e) => updateConfig('execution', { ...config.execution, useOrderTestBeforeRealOrder: e.target.checked })}
+                      className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
+                    />
+                    Test antes de orden real
+                  </label>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-text-primary">
+                <input
+                  type="checkbox"
+                  checked={config.execution.dryRun}
+                  onChange={(e) => updateConfig('execution', { ...config.execution, dryRun: e.target.checked })}
+                  className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
+                />
+                Dry Run (simulacion)
+              </label>
+              {!config.execution.dryRun && (
+                <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+                  ATENCION: Las ordenes se ejecutaran con dinero real
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Step content */}
-      <div className="rounded-lg border border-border bg-bg-secondary p-6">
-        {step === 0 && <StepGeneral config={config} setConfig={setConfig} mode={mode} setMode={setMode} />}
-        {step === 1 && (
-          <StepSymbolsTimeframes
-            config={config}
-            toggleSymbol={toggleSymbol}
-            toggleTimeframe={toggleTimeframe}
-          />
-        )}
-        {step === 2 && <StepEntry config={config} updateConfig={updateConfig} />}
-        {step === 3 && <StepExit config={config} updateConfig={updateConfig} />}
-        {step === 4 && <StepRisk config={config} updateConfig={updateConfig} />}
-        {step === 5 && <StepExecution config={config} updateConfig={updateConfig} />}
-        {step === 6 && <StepSummary config={config} />}
-      </div>
-
-      {/* Navigation buttons */}
-      <div className="mt-4 flex justify-between">
+      {/* Actions */}
+      <div className="mt-6 flex justify-end gap-3">
         <button
           type="button"
-          onClick={() => setStep((s) => Math.max(0, s - 1))}
-          disabled={step === 0}
-          className="rounded-md bg-bg-tertiary px-4 py-2 text-sm font-medium text-text-secondary hover:bg-bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={() => navigate(`/strategies/${id}`)}
+          className="rounded-md bg-bg-tertiary px-4 py-2 text-sm font-medium text-text-secondary hover:bg-bg-hover"
         >
-          Anterior
+          Cancelar
         </button>
-        {step < STEPS.length - 1 ? (
-          <button
-            type="button"
-            onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
-            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
-          >
-            Siguiente
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-md bg-success px-4 py-2 text-sm font-medium text-white hover:bg-success/80 disabled:opacity-50"
-          >
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ---- Shared input styling ---- */
-const inputClass =
-  'w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
-const labelClass = 'mb-1 block text-sm font-medium text-text-secondary';
-
-/* ---- Step components ---- */
-
-function StepGeneral({
-  config,
-  setConfig,
-  mode,
-  setMode,
-}: {
-  config: StrategyConfig;
-  setConfig: React.Dispatch<React.SetStateAction<StrategyConfig>>;
-  mode: string;
-  setMode: React.Dispatch<React.SetStateAction<string>>;
-}) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-text-primary">General</h2>
-      <div>
-        <label className={labelClass}>Modo de ejecucion</label>
-        <select
-          className={inputClass}
-          value={mode}
-          onChange={(e) => setMode(e.target.value)}
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <option value="simulation">Simulation</option>
-          <option value="binance_demo">Binance Demo</option>
-          <option value="binance_live">Binance Live</option>
-        </select>
+          {saving ? 'Guardando...' : 'Guardar Cambios'}
+        </button>
       </div>
-      <div>
-        <label className={labelClass}>Periodo SMA (filtro)</label>
-        <input
-          type="number"
-          className={inputClass}
-          value={config.entry.smaPeriod}
-          onChange={(e) =>
-            setConfig((prev) => ({
-              ...prev,
-              entry: { ...prev.entry, smaPeriod: Number(e.target.value) },
-            }))
-          }
-        />
-      </div>
-      <div>
-        <label className={labelClass}>Cooldown entre operaciones (minutos)</label>
-        <input
-          type="number"
-          className={inputClass}
-          value={config.entry.cooldownMinutes}
-          onChange={(e) =>
-            setConfig((prev) => ({
-              ...prev,
-              entry: { ...prev.entry, cooldownMinutes: Number(e.target.value) },
-            }))
-          }
-        />
-      </div>
-    </div>
-  );
-}
-
-function StepSymbolsTimeframes({
-  config,
-  toggleSymbol,
-  toggleTimeframe,
-}: {
-  config: StrategyConfig;
-  toggleSymbol: (s: string) => void;
-  toggleTimeframe: (tf: string) => void;
-}) {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-text-primary">Simbolos y Timeframes</h2>
-      <div>
-        <label className={labelClass}>Simbolos</label>
-        <div className="flex flex-wrap gap-2">
-          {COMMON_SYMBOLS.map((symbol) => (
-            <button
-              key={symbol}
-              type="button"
-              onClick={() => toggleSymbol(symbol)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                config.symbols.includes(symbol)
-                  ? 'bg-accent text-white'
-                  : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
-              }`}
-            >
-              {symbol}
-            </button>
-          ))}
-        </div>
-        {config.symbols.length === 0 && (
-          <p className="mt-1 text-xs text-danger">Selecciona al menos un simbolo</p>
-        )}
-      </div>
-      <div>
-        <label className={labelClass}>Timeframes</label>
-        <div className="flex flex-wrap gap-2">
-          {AVAILABLE_TIMEFRAMES.map((tf) => (
-            <button
-              key={tf}
-              type="button"
-              onClick={() => toggleTimeframe(tf)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                config.timeframes.includes(tf)
-                  ? 'bg-accent text-white'
-                  : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
-              }`}
-            >
-              {tf}
-            </button>
-          ))}
-        </div>
-        {config.timeframes.length === 0 && (
-          <p className="mt-1 text-xs text-danger">Selecciona al menos un timeframe</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function StepEntry({
-  config,
-  updateConfig,
-}: {
-  config: StrategyConfig;
-  updateConfig: <K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-text-primary">Reglas de Entrada</h2>
-      <div>
-        <label className={labelClass}>RSI por debajo de</label>
-        <input
-          type="number"
-          min={0}
-          max={100}
-          className={inputClass}
-          value={config.entry.rsiBelow}
-          onChange={(e) =>
-            updateConfig('entry', { ...config.entry, rsiBelow: Number(e.target.value) })
-          }
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="multiTf"
-          checked={config.entry.requireMultiTimeframeConfirmation}
-          onChange={(e) =>
-            updateConfig('entry', {
-              ...config.entry,
-              requireMultiTimeframeConfirmation: e.target.checked,
-            })
-          }
-          className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
-        />
-        <label htmlFor="multiTf" className="text-sm text-text-primary">
-          Confirmacion multi-Timeframe
-        </label>
-      </div>
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="smaFilter"
-          checked={config.entry.useSmaFilter}
-          onChange={(e) =>
-            updateConfig('entry', { ...config.entry, useSmaFilter: e.target.checked })
-          }
-          className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
-        />
-        <label htmlFor="smaFilter" className="text-sm text-text-primary">
-          Filtro SMA
-        </label>
-      </div>
-      {config.entry.useSmaFilter && (
-        <div>
-          <label className={labelClass}>Periodo SMA</label>
-          <input
-            type="number"
-            className={inputClass}
-            value={config.entry.smaPeriod}
-            onChange={(e) =>
-              updateConfig('entry', { ...config.entry, smaPeriod: Number(e.target.value) })
-            }
-          />
-        </div>
-      )}
-      <div>
-        <label className={labelClass}>Cooldown (minutos)</label>
-        <input
-          type="number"
-          className={inputClass}
-          value={config.entry.cooldownMinutes}
-          onChange={(e) =>
-            updateConfig('entry', { ...config.entry, cooldownMinutes: Number(e.target.value) })
-          }
-        />
-      </div>
-    </div>
-  );
-}
-
-function StepExit({
-  config,
-  updateConfig,
-}: {
-  config: StrategyConfig;
-  updateConfig: <K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-text-primary">Reglas de Salida</h2>
-      <div>
-        <label className={labelClass}>RSI por encima de</label>
-        <input
-          type="number"
-          min={0}
-          max={100}
-          className={inputClass}
-          value={config.exit.rsiAbove}
-          onChange={(e) =>
-            updateConfig('exit', { ...config.exit, rsiAbove: Number(e.target.value) })
-          }
-        />
-      </div>
-      <div>
-        <label className={labelClass}>Take Profit (%)</label>
-        <input
-          type="number"
-          step={0.1}
-          className={inputClass}
-          value={config.exit.takeProfitPct}
-          onChange={(e) =>
-            updateConfig('exit', { ...config.exit, takeProfitPct: Number(e.target.value) })
-          }
-        />
-      </div>
-      <div>
-        <label className={labelClass}>Stop Loss (%)</label>
-        <input
-          type="number"
-          step={0.1}
-          className={inputClass}
-          value={config.exit.stopLossPct}
-          onChange={(e) =>
-            updateConfig('exit', { ...config.exit, stopLossPct: Number(e.target.value) })
-          }
-        />
-      </div>
-      <div>
-        <label className={labelClass}>Trailing Stop (%) - opcional</label>
-        <input
-          type="number"
-          step={0.1}
-          className={inputClass}
-          value={config.exit.trailingStopPct ?? ''}
-          placeholder="Desactivado"
-          onChange={(e) =>
-            updateConfig('exit', {
-              ...config.exit,
-              trailingStopPct: e.target.value ? Number(e.target.value) : null,
-            })
-          }
-        />
-      </div>
-    </div>
-  );
-}
-
-function StepRisk({
-  config,
-  updateConfig,
-}: {
-  config: StrategyConfig;
-  updateConfig: <K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-text-primary">Riesgo y Capital</h2>
-      <div>
-        <label className={labelClass}>Importe por operacion (USDT)</label>
-        <input
-          type="number"
-          step={1}
-          className={inputClass}
-          value={config.risk.quoteAmountPerTrade}
-          onChange={(e) =>
-            updateConfig('risk', { ...config.risk, quoteAmountPerTrade: Number(e.target.value) })
-          }
-        />
-      </div>
-      <div>
-        <label className={labelClass}>Max posiciones abiertas</label>
-        <input
-          type="number"
-          className={inputClass}
-          value={config.risk.maxOpenPositions}
-          onChange={(e) =>
-            updateConfig('risk', { ...config.risk, maxOpenPositions: Number(e.target.value) })
-          }
-        />
-      </div>
-      <div>
-        <label className={labelClass}>Max posiciones por simbolo</label>
-        <input
-          type="number"
-          className={inputClass}
-          value={config.risk.maxPositionsPerSymbol}
-          onChange={(e) =>
-            updateConfig('risk', { ...config.risk, maxPositionsPerSymbol: Number(e.target.value) })
-          }
-        />
-      </div>
-      <div>
-        <label className={labelClass}>Exposicion maxima total (USDT)</label>
-        <input
-          type="number"
-          step={10}
-          className={inputClass}
-          value={config.risk.maxTotalExposureQuote}
-          onChange={(e) =>
-            updateConfig('risk', { ...config.risk, maxTotalExposureQuote: Number(e.target.value) })
-          }
-        />
-      </div>
-      <div>
-        <label className={labelClass}>Perdida diaria maxima (%)</label>
-        <input
-          type="number"
-          step={0.5}
-          className={inputClass}
-          value={config.risk.maxDailyLossPct}
-          onChange={(e) =>
-            updateConfig('risk', { ...config.risk, maxDailyLossPct: Number(e.target.value) })
-          }
-        />
-      </div>
-      <div>
-        <label className={labelClass}>Cooldown riesgo (minutos)</label>
-        <input
-          type="number"
-          className={inputClass}
-          value={config.risk.cooldownMinutes}
-          onChange={(e) =>
-            updateConfig('risk', { ...config.risk, cooldownMinutes: Number(e.target.value) })
-          }
-        />
-      </div>
-    </div>
-  );
-}
-
-function StepExecution({
-  config,
-  updateConfig,
-}: {
-  config: StrategyConfig;
-  updateConfig: <K extends keyof StrategyConfig>(section: K, value: StrategyConfig[K]) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-text-primary">Ejecucion</h2>
-      {!config.execution.dryRun && (
-        <div className="rounded-lg border border-warning bg-warning/10 px-4 py-3 text-sm font-medium text-warning">
-          ATENCION: Las ordenes se ejecutaran con dinero real en Binance Demo
-        </div>
-      )}
-      <div>
-        <label className={labelClass}>Tipo de orden</label>
-        <select
-          className={inputClass}
-          value={config.execution.orderType}
-          onChange={(e) =>
-            updateConfig('execution', {
-              ...config.execution,
-              orderType: e.target.value as 'MARKET',
-            })
-          }
-        >
-          <option value="MARKET">MARKET</option>
-        </select>
-      </div>
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="orderTest"
-          checked={config.execution.useOrderTestBeforeRealOrder}
-          onChange={(e) =>
-            updateConfig('execution', {
-              ...config.execution,
-              useOrderTestBeforeRealOrder: e.target.checked,
-            })
-          }
-          className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
-        />
-        <label htmlFor="orderTest" className="text-sm text-text-primary">
-          Order test antes de orden real
-        </label>
-      </div>
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="dryRun"
-          checked={config.execution.dryRun}
-          onChange={(e) =>
-            updateConfig('execution', { ...config.execution, dryRun: e.target.checked })
-          }
-          className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
-        />
-        <label htmlFor="dryRun" className="text-sm text-text-primary">
-          Dry Run (simulacion sin ordenes reales)
-        </label>
-      </div>
-    </div>
-  );
-}
-
-function StepSummary({ config }: { config: StrategyConfig }) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-text-primary">Resumen de Configuracion</h2>
-      <pre className="overflow-auto rounded-lg bg-bg-primary p-4 text-xs text-text-muted">
-        {JSON.stringify(config, null, 2)}
-      </pre>
     </div>
   );
 }
