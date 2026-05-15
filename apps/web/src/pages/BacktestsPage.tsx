@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { strategiesApi, backtestsApi } from '../api/strategies.ts';
 import type { StrategyListItem, BacktestResult, BacktestMetrics, BacktestTrade } from '../api/strategies.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
+import { EquityCurveChart } from '../components/EquityCurveChart.tsx';
 import { EmptyState } from '../components/EmptyState.tsx';
 
 const INTERVALS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
@@ -303,7 +304,11 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
           {/* Equity curve */}
           <div>
             <h3 className="mb-2 text-sm font-medium text-text-secondary">Curva de Capital</h3>
-            <EquityCurveTable curve={result.equityCurve} />
+            {result.equityCurve.length > 0 ? (
+              <EquityCurveChart equity={result.equityCurve.map((e) => ({ time: e.time, equity: e.equity }))} height={300} />
+            ) : (
+              <p className="text-sm text-text-muted">Sin datos de curva de capital.</p>
+            )}
           </div>
 
           {/* Trades */}

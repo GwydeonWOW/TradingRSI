@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { tradingApi } from '../api/trading.ts';
 import { liquidityApi } from '../api/liquidity.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
+import { CandlestickChart, type CandleData } from '../components/CandlestickChart.tsx';
 
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'] as const;
 
@@ -39,6 +40,8 @@ export function MarketPage() {
     SYMBOLS.map((s) => ({ symbol: s, price: null, rsi: null, change24h: null, liquidityScore: null, liquidityState: null, error: false }))
   );
   const [error, setError] = useState<string | null>(null);
+  const [selectedChart, setSelectedChart] = useState<string>('BTCUSDT');
+  const [chartData, setChartData] = useState<CandleData[]>([]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -76,6 +79,23 @@ export function MarketPage() {
         )
       );
       setError(null);
+
+      // Fetch candlestick data for chart
+      try {
+        const klineRes = await tradingApi.getKlines({ symbol: selectedChart, interval: '1h' });
+        setChartData(
+          klineRes.data.map((k) => ({
+            time: Math.floor(k.openTime / 1000),
+            open: parseFloat(k.open),
+            high: parseFloat(k.high),
+            low: parseFloat(k.low),
+            close: parseFloat(k.close),
+            volume: parseFloat(k.volume),
+          })),
+        );
+      } catch {
+        // Chart data fetch is best-effort
+      }
 
       // Fetch liquidity scores (non-blocking, best-effort)
       Promise.allSettled(
@@ -240,13 +260,31 @@ export function MarketPage() {
             ))}
           </div>
 
-          <div className="mt-8 rounded-lg border border-border bg-bg-secondary p-4">
-            <h2 className="mb-3 text-sm font-medium text-text-secondary">Watchlist</h2>
-            <p className="text-sm text-text-muted">
-              {prices.some((p) => p.price !== null)
-                ? `Precios y RSI actualizados cada 30 segundos. Fuente: Binance ${environment === 'demo' ? 'Demo' : environment}.`
-                : 'Sin datos de precios disponibles.'}
-            </p>
+          <div className="mt-6 rounded-lg border border-border bg-bg-secondary p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-medium text-text-secondary">Price Chart</h2>
+              <div className="flex gap-1">
+                {SYMBOLS.map((sym) => (
+                  <button
+                    key={sym}
+                    type="button"
+                    onClick={() => setSelectedChart(sym)}
+                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                      selectedChart === sym
+                        ? 'bg-accent text-white'
+                        : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                    }`}
+                  >
+                    {sym.slice(0, -4)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {chartData.length > 0 ? (
+              <CandlestickChart data={chartData} height={400} showVolume />
+            ) : (
+              <p className="text-sm text-text-muted">Loading chart data...</p>
+            )}
           </div>
         </>
       )}
