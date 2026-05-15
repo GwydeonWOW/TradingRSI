@@ -1,6 +1,7 @@
 import type { LiquidityState, TradeDecision } from './types.js';
 
 export function linearScore(value: number, good: number, bad: number, inverse = true): number {
+  if (!isFinite(value)) return 50; // neutral default for missing/bad data
   if (inverse) {
     if (value <= good) return 100;
     if (value >= bad) return 0;

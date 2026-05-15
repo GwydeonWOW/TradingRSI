@@ -5,6 +5,14 @@ import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { CandlestickChart, type CandleData } from '../components/CandlestickChart.tsx';
 
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'] as const;
+const TIMEFRAMES = [
+  { value: '1m', label: '1m' },
+  { value: '5m', label: '5m' },
+  { value: '15m', label: '15m' },
+  { value: '1h', label: '1H' },
+  { value: '4h', label: '4H' },
+  { value: '1d', label: '1D' },
+] as const;
 
 interface PriceData {
   symbol: string;
@@ -41,9 +49,12 @@ export function MarketPage() {
   );
   const [error, setError] = useState<string | null>(null);
   const [selectedChart, setSelectedChart] = useState<string>('BTCUSDT');
+  const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1h');
   const [chartData, setChartData] = useState<CandleData[]>([]);
+  const [chartLoading, setChartLoading] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  // Fetch price cards data
+  const fetchPrices = useCallback(async () => {
     try {
       const statusRes = await tradingApi.getBinanceStatus();
       const isConnected = statusRes.data.connected && statusRes.data.configured;
@@ -80,24 +91,7 @@ export function MarketPage() {
       );
       setError(null);
 
-      // Fetch candlestick data for chart
-      try {
-        const klineRes = await tradingApi.getKlines({ symbol: selectedChart, interval: '1h' });
-        setChartData(
-          klineRes.data.map((k) => ({
-            time: Math.floor(k.openTime / 1000),
-            open: parseFloat(k.open),
-            high: parseFloat(k.high),
-            low: parseFloat(k.low),
-            close: parseFloat(k.close),
-            volume: parseFloat(k.volume),
-          })),
-        );
-      } catch {
-        // Chart data fetch is best-effort
-      }
-
-      // Fetch liquidity scores (non-blocking, best-effort)
+      // Fetch liquidity scores (non-blocking)
       Promise.allSettled(
         SYMBOLS.map(async (symbol) => {
           try {
@@ -128,14 +122,41 @@ export function MarketPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  // Fetch chart data for selected symbol + timeframe
+  const fetchChart = useCallback(async () => {
+    if (!selectedChart) return;
+    setChartLoading(true);
+    try {
+      const klineRes = await tradingApi.getKlines({ symbol: selectedChart, interval: selectedTimeframe });
+      setChartData(
+        klineRes.data.map((k) => ({
+          time: Math.floor(k.openTime / 1000),
+          open: parseFloat(k.open),
+          high: parseFloat(k.high),
+          low: parseFloat(k.low),
+          close: parseFloat(k.close),
+          volume: parseFloat(k.volume),
+        })),
+      );
+    } catch {
+      setChartData([]);
+    } finally {
+      setChartLoading(false);
+    }
+  }, [selectedChart, selectedTimeframe]);
 
   useEffect(() => {
-    const interval = setInterval(fetchData, 30000);
+    fetchPrices();
+  }, [fetchPrices]);
+
+  useEffect(() => {
+    fetchChart();
+  }, [fetchChart]);
+
+  useEffect(() => {
+    const interval = setInterval(fetchPrices, 30000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [fetchPrices]);
 
   if (loading) {
     return (
@@ -159,18 +180,8 @@ export function MarketPage() {
       {connected === false ? (
         <div className="rounded-lg border border-border bg-bg-secondary p-8 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-danger/10">
-            <svg
-              className="h-8 w-8 text-danger"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-              />
+            <svg className="h-8 w-8 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
             </svg>
           </div>
           <h3 className="text-lg font-medium text-text-primary">Sin conexion a Binance</h3>
@@ -191,7 +202,10 @@ export function MarketPage() {
             {prices.map((p) => (
               <div
                 key={p.symbol}
-                className="rounded-lg border border-border border-l-4 border-l-accent bg-bg-secondary p-4"
+                className={`cursor-pointer rounded-lg border bg-bg-secondary p-4 transition-colors ${
+                  selectedChart === p.symbol ? 'border-accent border-l-4' : 'border-border border-l-4 border-l-accent/30'
+                }`}
+                onClick={() => setSelectedChart(p.symbol)}
               >
                 <p className="text-sm text-text-secondary">
                   {p.symbol.slice(0, -4)}/{p.symbol.slice(-4)}
@@ -230,9 +244,7 @@ export function MarketPage() {
                   {p.rsi !== null && (
                     <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-tertiary">
                       <div
-                        className={`h-full rounded-full ${
-                          p.rsi < 30 ? 'bg-success' : p.rsi > 70 ? 'bg-danger' : 'bg-accent'
-                        }`}
+                        className={`h-full rounded-full ${p.rsi < 30 ? 'bg-success' : p.rsi > 70 ? 'bg-danger' : 'bg-accent'}`}
                         style={{ width: `${p.rsi}%` }}
                       />
                     </div>
@@ -248,9 +260,7 @@ export function MarketPage() {
                     </div>
                     <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-tertiary">
                       <div
-                        className={`h-full rounded-full ${
-                          (p.liquidityState === 'excellent' || p.liquidityState === 'good') ? 'bg-success' : p.liquidityState === 'acceptable' ? 'bg-warning' : 'bg-danger'
-                        }`}
+                        className={`h-full rounded-full ${(p.liquidityState === 'excellent' || p.liquidityState === 'good') ? 'bg-success' : p.liquidityState === 'acceptable' ? 'bg-warning' : 'bg-danger'}`}
                         style={{ width: `${Math.min(100, p.liquidityScore)}%` }}
                       />
                     </div>
@@ -262,28 +272,54 @@ export function MarketPage() {
 
           <div className="mt-6 rounded-lg border border-border bg-bg-secondary p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-medium text-text-secondary">Price Chart</h2>
-              <div className="flex gap-1">
-                {SYMBOLS.map((sym) => (
-                  <button
-                    key={sym}
-                    type="button"
-                    onClick={() => setSelectedChart(sym)}
-                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-                      selectedChart === sym
-                        ? 'bg-accent text-white'
-                        : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
-                    }`}
-                  >
-                    {sym.slice(0, -4)}
-                  </button>
-                ))}
+              <h2 className="text-sm font-medium text-text-secondary">
+                {selectedChart.slice(0, -4)}/{selectedChart.slice(-4)} Chart
+              </h2>
+              <div className="flex gap-2">
+                {/* Symbol selector */}
+                <div className="flex gap-1">
+                  {SYMBOLS.map((sym) => (
+                    <button
+                      key={sym}
+                      type="button"
+                      onClick={() => setSelectedChart(sym)}
+                      className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                        selectedChart === sym
+                          ? 'bg-accent text-white'
+                          : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                      }`}
+                    >
+                      {sym.slice(0, -4)}
+                    </button>
+                  ))}
+                </div>
+                {/* Timeframe selector */}
+                <div className="ml-2 flex gap-1 border-l border-border pl-2">
+                  {TIMEFRAMES.map((tf) => (
+                    <button
+                      key={tf.value}
+                      type="button"
+                      onClick={() => setSelectedTimeframe(tf.value)}
+                      className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                        selectedTimeframe === tf.value
+                          ? 'bg-accent text-white'
+                          : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                      }`}
+                    >
+                      {tf.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-            {chartData.length > 0 ? (
+            {chartLoading ? (
+              <div className="flex h-[400px] items-center justify-center">
+                <LoadingSpinner />
+              </div>
+            ) : chartData.length > 0 ? (
               <CandlestickChart data={chartData} height={400} showVolume />
             ) : (
-              <p className="text-sm text-text-muted">Loading chart data...</p>
+              <p className="text-sm text-text-muted">Sin datos del gráfico.</p>
             )}
           </div>
         </>
