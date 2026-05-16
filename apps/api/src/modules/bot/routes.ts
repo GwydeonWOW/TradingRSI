@@ -10,6 +10,27 @@ import { getBinanceCredentials } from '../../infrastructure/credentials/index.js
 
 // Singleton stream manager
 let streamManager: BinanceStreamManager | null = null;
+let cycleTimer: NodeJS.Timeout | null = null;
+const CYCLE_INTERVAL_MS = 60_000;
+
+function startCycleLoop() {
+  stopCycleLoop();
+  cycleTimer = setInterval(() => {
+    const state = getBotState();
+    if (state.status === 'running') {
+      runEvaluationCycle().catch((err) => {
+        logger.error({ err }, 'Scheduled evaluation cycle failed');
+      });
+    }
+  }, CYCLE_INTERVAL_MS);
+}
+
+function stopCycleLoop() {
+  if (cycleTimer) {
+    clearInterval(cycleTimer);
+    cycleTimer = null;
+  }
+}
 
 export async function botRoutes(app: FastifyInstance) {
   // GET /api/bot/status
@@ -200,8 +221,9 @@ export async function botRoutes(app: FastifyInstance) {
       }
     }
 
-    // Run first cycle immediately
+    // Run first cycle immediately, then every CYCLE_INTERVAL_MS
     runEvaluationCycle().catch(() => {});
+    startCycleLoop();
 
     return { success: true, data: getBotState() };
   });
@@ -219,6 +241,7 @@ export async function botRoutes(app: FastifyInstance) {
       streamManager = null;
     }
 
+    stopCycleLoop();
     resetBotState();
 
     await createAuditEvent({
@@ -255,6 +278,8 @@ export async function botRoutes(app: FastifyInstance) {
       await streamManager.stop();
       streamManager = null;
     }
+
+    stopCycleLoop();
 
     resetBotState();
 
