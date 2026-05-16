@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../infrastructure/db/prisma.js';
 import { logger } from '../../infrastructure/logger/index.js';
-import { calculateLiquidityHealth } from '@cryptorsi/liquidity';
-import { collectLiquidityData } from './collectors.js';
+import { calculateLiquidityHealth, calculateBtcStability } from '@cryptorsi/liquidity';
+import { collectLiquidityData, fetchBtcDailyKlines } from './collectors.js';
 
 function validateSymbol(symbol: string): boolean {
   return /^[A-Z]{2,20}$/.test(symbol);
@@ -157,6 +157,27 @@ export async function liquidityRoutes(app: FastifyInstance) {
       return reply.code(500).send({
         success: false,
         error: { code: 'INTERNAL_ERROR', message: 'Failed to simulate order' },
+      });
+    }
+  });
+
+  // GET /api/liquidity/btc-stability
+  app.get('/api/liquidity/btc-stability', async (_request, reply) => {
+    try {
+      const candles = await fetchBtcDailyKlines(60);
+      if (candles.length < 30) {
+        return reply.code(503).send({
+          success: false,
+          error: { code: 'INSUFFICIENT_DATA', message: 'Not enough BTC daily data' },
+        });
+      }
+      const result = calculateBtcStability(candles);
+      return reply.code(200).send({ success: true, data: result });
+    } catch (err) {
+      logger.error(err, 'Failed to calculate BTC stability');
+      return reply.code(500).send({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to calculate BTC stability' },
       });
     }
   });

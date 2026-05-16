@@ -17,6 +17,10 @@ export interface StrategyConfig {
   exit: ExitConfig;
   risk: RiskConfig;
   execution: ExecutionConfig;
+  btcStability?: {
+    enabled: boolean;
+    minScore: number;
+  };
 }
 
 export interface EntryConfig {

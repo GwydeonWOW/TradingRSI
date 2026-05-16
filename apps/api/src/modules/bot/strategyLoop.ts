@@ -15,6 +15,8 @@ import { getBotState, setBotState } from './state.js';
 import { getBinanceCredentials } from '../../infrastructure/credentials/index.js';
 import type { StrategyConfig } from '@cryptorsi/shared';
 import { BINANCE_ENVIRONMENTS } from '@cryptorsi/shared';
+import { calculateBtcStability } from '@cryptorsi/liquidity';
+import { fetchBtcDailyKlines } from '../liquidity/collectors.js';
 
 export interface BotEvent {
   type: string;
@@ -117,7 +119,29 @@ export async function runEvaluationCycle(): Promise<void> {
         }
 
         // Evaluate signal
-        const signal = evaluateSignal(config, marketData);
+        let signal = evaluateSignal(config, marketData);
+
+        // BTC stability gate: block BUY signals when BTC is unstable
+        if (signal.signalType === 'BUY_SIGNAL' && config.btcStability?.enabled) {
+          try {
+            const btcCandles = await fetchBtcDailyKlines(60);
+            if (btcCandles.length >= 30) {
+              const stability = calculateBtcStability(btcCandles, { minScore: config.btcStability.minScore });
+              if (!stability.passed) {
+                addEvent('btc_stability_blocked', { symbol, score: stability.score, minScore: stability.minScore });
+                signal = {
+                  ...signal,
+                  signalType: 'BLOCKED_BY_ENVIRONMENT',
+                  reasons: [...signal.reasons, `BTC stability ${stability.score}/${stability.maxScore} < ${stability.minScore} required`],
+                };
+              } else {
+                addEvent('btc_stability_ok', { symbol, score: stability.score });
+              }
+            }
+          } catch (err) {
+            logger.warn({ err }, 'BTC stability check failed, allowing trade');
+          }
+        }
 
         // Save signal to DB
         const savedSignal = await prisma.signal.create({

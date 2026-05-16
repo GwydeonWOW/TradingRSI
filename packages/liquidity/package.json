@@ -10,6 +10,9 @@
     "build": "tsc",
     "prepublishOnly": "pnpm run build"
   },
+  "dependencies": {
+    "@cryptorsi/indicators": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "^5.8.0"
   }

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { tradingApi } from '../api/trading.ts';
-import { liquidityApi } from '../api/liquidity.ts';
+import { liquidityApi, type BtcStabilityResult } from '../api/liquidity.ts';
 import { getSymbols } from '../api/config.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { detectRSIDivergence, calculateRSI as calculateRSIFull } from '../utils/rsiDivergence.ts';
@@ -53,6 +53,7 @@ export function MarketPage() {
   const [chartData, setChartData] = useState<{ time: number; open: number; high: number; low: number; close: number; volume: number }[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [showDivergence, setShowDivergence] = useState(true);
+  const [btcStability, setBtcStability] = useState<BtcStabilityResult | null>(null);
 
   // Initialize prices from symbols
   useEffect(() => {
@@ -170,6 +171,12 @@ export function MarketPage() {
     return () => clearInterval(interval);
   }, [fetchPrices]);
 
+  useEffect(() => {
+    liquidityApi.getBtcStability()
+      .then((res) => setBtcStability(res.data))
+      .catch(() => setBtcStability(null));
+  }, []);
+
   const divergenceMarkers = useMemo(() => {
     if (!showDivergence || chartData.length < 30) return undefined;
     const times = chartData.map((d) => d.time);
@@ -224,6 +231,14 @@ export function MarketPage() {
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
               Datos de Binance {environment === 'demo' ? 'Demo' : environment}
             </span>
+            {btcStability && (
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                btcStability.passed ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
+              }`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${btcStability.passed ? 'bg-success' : 'bg-danger'}`} />
+                BTC Stability: {btcStability.score}/{btcStability.maxScore}
+              </span>
+            )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

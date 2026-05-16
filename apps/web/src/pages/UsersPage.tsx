@@ -11,10 +11,14 @@ export function UsersPage() {
   const [approving, setApproving] = useState<string | null>(null);
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState<string>('user');
   const [creating, setCreating] = useState(false);
 
   const inputClass =
     'w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
+
+  const selectClass =
+    'rounded-md border border-border bg-bg-primary px-2 py-2 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -32,11 +36,11 @@ export function UsersPage() {
     fetchUsers();
   }, [fetchUsers]);
 
-  async function handleApprove(id: string) {
+  async function handleApprove(id: string, role: string) {
     setApproving(id);
     setError(null);
     try {
-      await authApi.approveUser(id);
+      await authApi.approveUser(id, { role });
       await fetchUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al aprobar usuario');
@@ -48,11 +52,25 @@ export function UsersPage() {
   if (user?.role !== 'admin') {
     return (
       <div>
-        <h1 className="mb-6 text-xl font-bold text-text-primary">Gestion de Usuarios</h1>
+        <h1 className="mb-6 text-xl font-bold text-text-primary">Seguridad 2FA</h1>
         <div className="rounded-lg border border-danger/30 bg-danger/5 p-6">
           <p className="text-sm text-danger">Solo los administradores pueden gestionar usuarios.</p>
         </div>
       </div>
+    );
+  }
+
+  function roleBadge(role: string) {
+    const styles: Record<string, string> = {
+      admin: 'bg-accent/10 text-accent',
+      pending: 'bg-warning/10 text-warning',
+      operator: 'bg-blue-500/10 text-blue-400',
+      user: 'bg-success/10 text-success',
+    };
+    return (
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${styles[role] ?? 'bg-bg-tertiary text-text-muted'}`}>
+        {role}
+      </span>
     );
   }
 
@@ -88,19 +106,7 @@ export function UsersPage() {
               {users.map((u) => (
                 <tr key={u.id}>
                   <td className="px-4 py-3 font-mono text-xs text-text-primary">{u.id.slice(0, 8)}...</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        u.role === 'admin'
-                          ? 'bg-accent/10 text-accent'
-                          : u.role === 'pending'
-                            ? 'bg-warning/10 text-warning'
-                            : 'bg-success/10 text-success'
-                      }`}
-                    >
-                      {u.role}
-                    </span>
-                  </td>
+                  <td className="px-4 py-3">{roleBadge(u.role)}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs ${u.mfaEnabled ? 'text-success' : 'text-text-muted'}`}>
                       {u.mfaEnabled ? 'Activado' : 'No'}
@@ -115,14 +121,27 @@ export function UsersPage() {
                   </td>
                   <td className="px-4 py-3">
                     {u.role === 'pending' ? (
-                      <button
-                        type="button"
-                        onClick={() => handleApprove(u.id)}
-                        disabled={approving === u.id}
-                        className="rounded-md bg-success/15 px-3 py-1 text-xs font-medium text-success hover:bg-success/25 disabled:opacity-50"
-                      >
-                        {approving === u.id ? 'Aprobando...' : 'Aprobar'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <select
+                          className={`${selectClass} text-xs py-1`}
+                          defaultValue="user"
+                          id={`role-${u.id}`}
+                        >
+                          <option value="user">Usuario</option>
+                          <option value="operator">Operador</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const sel = document.getElementById(`role-${u.id}`) as HTMLSelectElement;
+                            handleApprove(u.id, sel?.value ?? 'user');
+                          }}
+                          disabled={approving === u.id}
+                          className="rounded-md bg-success/15 px-3 py-1 text-xs font-medium text-success hover:bg-success/25 disabled:opacity-50"
+                        >
+                          {approving === u.id ? 'Aprobando...' : 'Aprobar'}
+                        </button>
+                      </div>
                     ) : (
                       <span className="text-xs text-text-muted">-</span>
                     )}
@@ -143,9 +162,10 @@ export function UsersPage() {
             setCreating(true);
             setError(null);
             try {
-              await authApi.createUser({ email: newEmail, password: newPassword });
+              await authApi.createUser({ email: newEmail, password: newPassword, role: newRole });
               setNewEmail('');
               setNewPassword('');
+              setNewRole('user');
               await fetchUsers();
             } catch (err) {
               setError(err instanceof Error ? err.message : 'Error al crear usuario');
@@ -163,6 +183,13 @@ export function UsersPage() {
             <label className="mb-1 block text-xs font-medium text-text-secondary">Contrasena</label>
             <input type="password" className={inputClass} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} placeholder="Minimo 8 caracteres" />
           </div>
+          <div className="w-28">
+            <label className="mb-1 block text-xs font-medium text-text-secondary">Rol</label>
+            <select className={selectClass} value={newRole} onChange={(e) => setNewRole(e.target.value)}>
+              <option value="user">Usuario</option>
+              <option value="operator">Operador</option>
+            </select>
+          </div>
           <button
             type="submit"
             disabled={creating}
@@ -178,6 +205,7 @@ export function UsersPage() {
         <ul className="space-y-1 text-xs text-text-muted">
           <li>El primer usuario registrado se convierte automaticamente en admin.</li>
           <li>Los siguientes usuarios necesitan aprobacion del admin para acceder.</li>
+          <li><strong>Operador:</strong> puede operar el bot y ver ordenes. Debe tener 2FA activado.</li>
           <li>Los usuarios pueden activar 2FA desde su pagina de Seguridad.</li>
         </ul>
       </div>

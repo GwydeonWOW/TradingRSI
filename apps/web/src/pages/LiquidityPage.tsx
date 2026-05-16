@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { liquidityApi, type LiquidityResult } from '../api/liquidity.ts';
+import { liquidityApi, type LiquidityResult, type BtcStabilityResult } from '../api/liquidity.ts';
 import { getLiquiditySymbols } from '../api/config.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 
@@ -238,6 +238,26 @@ function LiquidityCard({ symbol }: { symbol: string }) {
 }
 
 export function LiquidityPage() {
+  const [btcStability, setBtcStability] = useState<BtcStabilityResult | null>(null);
+  const [btcLoading, setBtcLoading] = useState(true);
+
+  const fetchBtcStability = useCallback(async () => {
+    try {
+      const res = await liquidityApi.getBtcStability();
+      setBtcStability(res.data);
+    } catch {
+      setBtcStability(null);
+    } finally {
+      setBtcLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchBtcStability(); }, [fetchBtcStability]);
+  useEffect(() => {
+    const interval = setInterval(fetchBtcStability, 300000);
+    return () => clearInterval(interval);
+  }, [fetchBtcStability]);
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -261,6 +281,59 @@ export function LiquidityPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
+        {/* BTC Stability Card */}
+        <div className="rounded-lg border border-border bg-bg-secondary p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-lg font-semibold text-text-primary">BTC Stability</p>
+              <div className="mt-1 flex items-center gap-2">
+                {btcLoading ? (
+                  <span className="text-sm text-text-muted">Cargando...</span>
+                ) : btcStability ? (
+                  <>
+                    <span className={`text-3xl font-bold ${btcStability.passed ? 'text-success' : 'text-danger'}`}>
+                      {btcStability.score}
+                    </span>
+                    <span className="text-sm text-text-muted">/{btcStability.maxScore}</span>
+                  </>
+                ) : (
+                  <span className="text-sm text-text-muted">No disponible</span>
+                )}
+              </div>
+            </div>
+            <div className="text-right">
+              {btcStability && (
+                <>
+                  <span className={`inline-block rounded-full border px-3 py-1 text-xs font-medium ${
+                    btcStability.passed
+                      ? 'bg-success/10 text-success border-success/30'
+                      : 'bg-danger/10 text-danger border-danger/30'
+                  }`}>
+                    {btcStability.passed ? 'OPERAR' : 'BLOQUEADO'}
+                  </span>
+                  <p className="mt-1 text-xs text-text-muted">Minimo: {btcStability.minScore}/{btcStability.maxScore}</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {btcStability && (
+            <div className="space-y-2">
+              {btcStability.filters.map((f) => (
+                <div key={f.name} className="flex items-center justify-between rounded bg-bg-primary px-3 py-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${f.passed ? 'bg-success' : 'bg-danger'}`} />
+                    <span className="text-text-secondary">{f.name}</span>
+                  </div>
+                  <span className={f.passed ? 'text-success font-medium' : 'text-danger font-medium'}>
+                    {typeof f.value === 'number' ? f.value.toFixed(1) : f.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {SYMBOLS.map((symbol) => (
           <LiquidityCard key={symbol} symbol={symbol} />
         ))}

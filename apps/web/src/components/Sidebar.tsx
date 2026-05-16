@@ -24,13 +24,13 @@ interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
-  adminOnly?: boolean;
+  roles?: string[];
 }
 
 interface NavGroup {
   title: string;
   items: NavItem[];
-  adminOnly?: boolean;
+  roles?: string[];
 }
 
 const groups: NavGroup[] = [
@@ -38,9 +38,9 @@ const groups: NavGroup[] = [
     title: 'Monitorizacion',
     items: [
       { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={18} /> },
-      { label: 'Bot en vivo', path: '/bot', icon: <Bot size={18} />, adminOnly: true },
+      { label: 'Bot en vivo', path: '/bot', icon: <Bot size={18} />, roles: ['admin', 'operator'] },
       { label: 'Posiciones', path: '/positions', icon: <TrendingUp size={18} /> },
-      { label: 'Ordenes', path: '/orders', icon: <ClipboardList size={18} />, adminOnly: true },
+      { label: 'Ordenes', path: '/orders', icon: <ClipboardList size={18} />, roles: ['admin', 'operator'] },
       { label: 'Senales', path: '/signals', icon: <Radio size={18} /> },
     ],
   },
@@ -60,7 +60,7 @@ const groups: NavGroup[] = [
   },
   {
     title: 'Configuracion',
-    adminOnly: true,
+    roles: ['admin'],
     items: [
       { label: 'Settings', path: '/settings', icon: <Settings size={18} /> },
       { label: 'Seguridad 2FA', path: '/settings/2fa', icon: <ShieldCheck size={18} /> },
@@ -68,8 +68,15 @@ const groups: NavGroup[] = [
     ],
   },
   {
+    title: 'Seguridad',
+    roles: ['operator'],
+    items: [
+      { label: 'Seguridad 2FA', path: '/settings/2fa', icon: <ShieldCheck size={18} /> },
+    ],
+  },
+  {
     title: 'Auditoria',
-    adminOnly: true,
+    roles: ['admin'],
     items: [
       { label: 'Eventos', path: '/audit', icon: <ScrollText size={18} /> },
     ],
@@ -78,13 +85,13 @@ const groups: NavGroup[] = [
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const role = user?.role ?? '';
 
   const filteredGroups = groups
-    .filter((g) => !g.adminOnly || isAdmin)
+    .filter((g) => !g.roles || g.roles.includes(role))
     .map((g) => ({
       ...g,
-      items: g.items.filter((item) => !item.adminOnly || isAdmin),
+      items: g.items.filter((item) => !item.roles || item.roles.includes(role)),
     }));
 
   return (

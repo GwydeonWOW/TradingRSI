@@ -109,3 +109,6 @@ export function calculateLiquidityHealth(input: LiquidityInput): LiquidityHealth
 }
 
 export type { LiquidityInput, LiquidityHealthResult, LiquidityBlockScore, LiquidityState, TradeDecision } from './types.js';
+
+export { calculateBtcStability } from './btcStability.js';
+export type { BtcStabilityResult, BtcStabilityConfig, BtcDailyCandle, BtcStabilityFilter } from './btcStability.js';

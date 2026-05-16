@@ -225,6 +225,10 @@ importers:
         version: 5.9.3
 
   packages/liquidity:
+    dependencies:
+      '@cryptorsi/indicators':
+        specifier: workspace:*
+        version: link:../indicators
     devDependencies:
       typescript:
         specifier: ^5.8.0

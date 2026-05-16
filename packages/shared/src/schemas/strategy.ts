@@ -44,6 +44,10 @@ export const StrategyConfigSchema = z.object({
   exit: ExitConfigSchema,
   risk: RiskConfigSchema,
   execution: ExecutionConfigSchema,
+  btcStability: z.object({
+    enabled: z.boolean(),
+    minScore: z.number().min(0).max(5),
+  }).optional(),
 });
 
 export const CreateStrategySchema = z.object({

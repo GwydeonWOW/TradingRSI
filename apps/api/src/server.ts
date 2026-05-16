@@ -26,7 +26,7 @@ const PUBLIC_PATHS = [
   '/api/auth/needs-setup',
 ];
 
-// Paths that require admin role
+// Paths that require admin role (settings, credentials, user management)
 const ADMIN_ONLY_PATHS = [
   '/api/settings/',
   '/api/binance/account',
@@ -38,10 +38,14 @@ const ADMIN_ONLY_PATHS = [
   '/api/binance/streams/stop',
   '/api/binance/live-readiness',
   '/api/binance/force-reset',
-  '/api/bot/',
-  '/api/orders/',
   '/api/auth/users',
   '/api/auth/force-reset',
+];
+
+// Paths accessible by admin or operator (bot control, orders)
+const OPERATOR_PATHS = [
+  '/api/bot/',
+  '/api/orders/',
 ];
 
 // Paths that require JWT but skip MFA check (used during MFA setup/verification)
@@ -118,6 +122,19 @@ async function start() {
     // Enforce admin-only routes
     if (ADMIN_ONLY_PATHS.some((p) => request.url.startsWith(p)) && auth.role !== 'admin') {
       return reply.code(403).send({ success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+    }
+
+    // Enforce operator+admin routes (bot, orders)
+    if (OPERATOR_PATHS.some((p) => request.url.startsWith(p)) && auth.role !== 'admin' && auth.role !== 'operator') {
+      return reply.code(403).send({ success: false, error: { code: 'FORBIDDEN', message: 'Operator or admin access required' } });
+    }
+
+    // Operators must have MFA enabled on their account
+    if (auth.role === 'operator' && OPERATOR_PATHS.some((p) => request.url.startsWith(p))) {
+      const opUser = await prisma.user.findUnique({ where: { id: auth.userId }, select: { mfaEnabled: true } });
+      if (!opUser?.mfaEnabled) {
+        return reply.code(403).send({ success: false, error: { code: 'OPERATOR_MFA_REQUIRED', message: '2FA must be activated for operator access' } });
+      }
     }
   });
 

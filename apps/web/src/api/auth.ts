@@ -28,8 +28,8 @@ export const authApi = {
   challenge2fa: (data: { code: string }) =>
     apiPost<{ success: true; data: { verified: boolean; token: string } }>('/auth/2fa/challenge', data),
   listUsers: () => apiGet<{ success: true; data: PendingUser[] }>('/auth/users'),
-  approveUser: (id: string) => apiPost<{ success: true; data: { id: string; role: string } }>(`/auth/users/${id}/approve`),
-  createUser: (data: { email: string; password: string }) =>
+  approveUser: (id: string, data?: { role?: string }) => apiPost<{ success: true; data: { id: string; role: string } }>(`/auth/users/${id}/approve`, data),
+  createUser: (data: { email: string; password: string; role?: string }) =>
     apiPost<{ success: true; data: { id: string; role: string } }>('/auth/users', data),
   seedAdmin: () => apiPost<{ success: true; data: { message: string } }>('/auth/seed-admin'),
 };

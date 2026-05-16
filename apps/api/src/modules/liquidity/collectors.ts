@@ -1,5 +1,5 @@
 import { BINANCE_ENVIRONMENTS } from '@cryptorsi/shared';
-import type { LiquidityInput } from '@cryptorsi/liquidity';
+import type { LiquidityInput, BtcDailyCandle } from '@cryptorsi/liquidity';
 
 type BinanceEnv = 'demo' | 'testnet' | 'production';
 
@@ -215,4 +215,18 @@ export async function collectLiquidityData(
   };
 
   return { input, latencyMs };
+}
+
+export async function fetchBtcDailyKlines(limit = 60): Promise<BtcDailyCandle[]> {
+  const baseUrl = getBaseUrl();
+  const data = await safeJsonFetch(`${baseUrl}/v3/klines?symbol=BTCUSDT&interval=1d&limit=${limit}`);
+  if (!data) return [];
+  const klines = data as (string | number)[][];
+  return klines.map((k) => ({
+    open: parseFloat(k[1] as string),
+    high: parseFloat(k[2] as string),
+    low: parseFloat(k[3] as string),
+    close: parseFloat(k[4] as string),
+    volume: parseFloat(k[5] as string),
+  }));
 }

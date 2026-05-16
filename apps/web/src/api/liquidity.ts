@@ -23,6 +23,22 @@ export interface LiquidityResult {
   reasons: string[];
 }
 
+export interface BtcStabilityFilter {
+  name: string;
+  passed: boolean;
+  value: number | string;
+  threshold: string;
+  reason: string;
+}
+
+export interface BtcStabilityResult {
+  score: number;
+  maxScore: number;
+  passed: boolean;
+  minScore: number;
+  filters: BtcStabilityFilter[];
+}
+
 export const liquidityApi = {
   getCurrent: (symbol: string, params?: { side?: string; quoteAmount?: number }) => {
     const query = new URLSearchParams();
@@ -34,4 +50,6 @@ export const liquidityApi = {
     apiGet<{ success: true; data: Array<Record<string, unknown>> }>(`/liquidity/${symbol}/history?hours=${hours}`),
   simulateOrder: (symbol: string, data: { side: string; quoteAmount: number }) =>
     apiPost<{ success: true; data: Record<string, unknown> }>(`/liquidity/${symbol}/simulate-order`, data),
+  getBtcStability: () =>
+    apiGet<{ success: true; data: BtcStabilityResult }>('/liquidity/btc-stability'),
 };

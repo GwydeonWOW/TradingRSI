@@ -263,9 +263,12 @@ export async function authRoutes(app: FastifyInstance) {
       if (!auth || auth.role !== 'admin') return reply.code(403).send({ success: false, error: { code: 'FORBIDDEN', message: 'Admin required' } });
 
       const { id } = request.params as { id: string };
-      await prisma.user.update({ where: { id }, data: { role: 'user' } });
-      await createAuditEvent({ actorType: 'user', eventType: 'user.approved', entityType: 'user', entityId: id, payload: { approvedBy: auth.userId } });
-      return reply.code(200).send({ success: true, data: { id, role: 'user' } });
+      const approveBody = request.body as { role?: string } | undefined;
+      const targetRole = approveBody?.role === 'operator' ? 'operator' : 'user';
+
+      await prisma.user.update({ where: { id }, data: { role: targetRole } });
+      await createAuditEvent({ actorType: 'user', eventType: 'user.approved', entityType: 'user', entityId: id, payload: { approvedBy: auth.userId, role: targetRole } });
+      return reply.code(200).send({ success: true, data: { id, role: targetRole } });
     } catch {
       return reply.code(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } });
     }
@@ -279,13 +282,15 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(403).send({ success: false, error: { code: 'FORBIDDEN', message: 'Admin required' } });
       }
 
-      const body = request.body as { email?: string; password?: string };
+      const body = request.body as { email?: string; password?: string; role?: string };
       if (!body.email || !body.password) {
         return reply.code(400).send({ success: false, error: { code: 'VALIDATION', message: 'Email and password required' } });
       }
       if (body.password.length < 8) {
         return reply.code(400).send({ success: false, error: { code: 'VALIDATION', message: 'Password must be at least 8 characters' } });
       }
+
+      const assignRole = body.role === 'operator' ? 'operator' : 'user';
 
       const lookupHash = crypto.createHash('sha256').update(body.email.toLowerCase()).digest('hex');
       const existing = await prisma.user.findUnique({ where: { emailLookupHash: lookupHash } });
@@ -297,11 +302,11 @@ export async function authRoutes(app: FastifyInstance) {
         data: {
           emailLookupHash: lookupHash,
           passwordHash: await hashPassword(body.password),
-          role: 'user',
+          role: assignRole,
         },
       });
 
-      await createAuditEvent({ actorType: 'user', eventType: 'user.created_by_admin', entityType: 'user', entityId: user.id, payload: { createdBy: auth.userId } });
+      await createAuditEvent({ actorType: 'user', eventType: 'user.created_by_admin', entityType: 'user', entityId: user.id, payload: { createdBy: auth.userId, role: assignRole } });
 
       return reply.code(201).send({ success: true, data: { id: user.id, role: user.role } });
     } catch (err) {

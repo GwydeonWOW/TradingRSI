@@ -99,13 +99,13 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
         if (syncing || !range || !rsiChart) return;
         syncing = true;
         rsiChart.timeScale().setVisibleLogicalRange(range);
-        syncing = false;
+        setTimeout(() => { syncing = false; }, 0);
       });
       rsiChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
         if (syncing || !range) return;
         syncing = true;
         priceChart.timeScale().setVisibleLogicalRange(range);
-        syncing = false;
+        setTimeout(() => { syncing = false; }, 0);
       });
     }
 
@@ -151,6 +151,10 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
     // Only fit content on first load or when data length shrinks (symbol/timeframe change)
     if (data.length !== state.lastDataLen && (state.lastDataLen === 0 || data.length < state.lastDataLen)) {
       state.priceChart.timeScale().fitContent();
+      if (state.rsiChart) {
+        const range = state.priceChart.timeScale().getVisibleLogicalRange();
+        if (range) state.rsiChart.timeScale().setVisibleLogicalRange(range);
+      }
     }
     state.lastDataLen = data.length;
 
@@ -169,8 +173,10 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
 
     state.rsiSeries.setData(rsiData.map((d) => ({ time: d.time as Time, value: d.value })));
 
-    if (rsiData.length !== state.lastRsiLen && (state.lastRsiLen === 0 || rsiData.length < state.lastRsiLen)) {
-      state.rsiChart?.timeScale().fitContent();
+    // Sync RSI visible range to match price chart
+    if (rsiData.length !== state.lastRsiLen && state.rsiChart) {
+      const range = state.priceChart.timeScale().getVisibleLogicalRange();
+      if (range) state.rsiChart.timeScale().setVisibleLogicalRange(range);
     }
     state.lastRsiLen = rsiData.length;
   }, [rsiData]);

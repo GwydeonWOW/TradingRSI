@@ -452,6 +452,31 @@ function StepRisk({ config, onUpdate }: { config: StrategyConfig; onUpdate: <K e
             onChange={(e) => onUpdate('risk', { ...config.risk, cooldownMinutes: Number(e.target.value) })} />
         </div>
       </div>
+
+      <div className="mt-4 rounded-lg border border-border bg-bg-primary p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-text-primary">Filtro BTC Stability</h3>
+            <p className="mt-0.5 text-xs text-text-muted">Bloquear entradas cuando BTC no es estable (ATR%, ADX, SMA20, estructura de precio).</p>
+          </div>
+          <label className="relative inline-flex cursor-pointer items-center">
+            <input type="checkbox" className="peer sr-only"
+              checked={config.btcStability?.enabled ?? false}
+              onChange={(e) => onUpdate('btcStability', {
+                enabled: e.target.checked,
+                minScore: config.btcStability?.minScore ?? 4,
+              } as any)} />
+            <div className="peer h-5 w-9 rounded-full bg-bg-tertiary after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-text-muted after:transition-all peer-checked:bg-accent peer-checked:after:translate-x-full peer-checked:after:bg-white" />
+          </label>
+        </div>
+        {config.btcStability?.enabled && (
+          <div className="mt-3">
+            <label className={labelClass}>Score minimo (0-5)</label>
+            <input type="number" min={0} max={5} step={1} className={inputClass} value={config.btcStability.minScore}
+              onChange={(e) => onUpdate('btcStability', { enabled: true, minScore: Number(e.target.value) } as any)} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
