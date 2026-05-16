@@ -7,6 +7,7 @@ FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml prisma.config.ts ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/indicators/package.json ./packages/indicators/
 COPY prisma/ ./prisma/
 RUN pnpm install --frozen-lockfile --config.node-linker=hoisted
 
@@ -17,6 +18,7 @@ COPY . .
 ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 RUN npx prisma generate
 RUN pnpm --filter @cryptorsi/shared build
+RUN pnpm --filter @cryptorsi/indicators build
 RUN pnpm --filter web build
 
 # Production with nginx
