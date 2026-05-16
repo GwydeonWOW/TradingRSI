@@ -171,8 +171,12 @@ export function BotPage() {
     setActionLoading(true);
     try {
       const res = await botApi.start(strategyId);
-      setStatus(res.data);
-      setShowStrategySelect(false);
+      if (res.success) {
+        setStatus(res.data);
+        setShowStrategySelect(false);
+      } else {
+        setError((res as any).error?.message ?? 'Error iniciando bot');
+      }
       fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error iniciando bot');
