@@ -185,7 +185,10 @@ export async function runEvaluationCycle(): Promise<void> {
               },
               select: { id: true },
             });
-            if (recentSignal) continue;
+            if (recentSignal) {
+              addEvent('signal_cooldown', { symbol, signalType: signal.signalType, rsi: signal.rsiValue, reason: `Deduplicated: ${signal.signalType} for ${symbol} within ${config.risk.cooldownMinutes}min cooldown` });
+              continue;
+            }
           }
         }
 
