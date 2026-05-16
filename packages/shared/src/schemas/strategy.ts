@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+export const TimeframeConditionSchema = z.object({
+  timeframe: z.string(),
+  rsiBelow: z.number().min(0).max(100).optional(),
+  rsiAbove: z.number().min(0).max(100).optional(),
+});
+
 export const EntryConfigSchema = z.object({
   entryMode: z.enum(['rsi_threshold', 'divergence']).optional(),
   rsiBelow: z.number().min(0).max(100),
@@ -7,6 +13,7 @@ export const EntryConfigSchema = z.object({
   rsiPeriod: z.number().positive().optional(),
   useRsiDivergence: z.boolean().optional(),
   requireMultiTimeframeConfirmation: z.boolean(),
+  multiTimeframeConditions: z.array(TimeframeConditionSchema).optional(),
   useSmaFilter: z.boolean(),
   smaPeriod: z.number().positive(),
   useVolumeConfirmation: z.boolean().optional(),

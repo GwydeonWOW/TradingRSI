@@ -82,20 +82,24 @@ export async function runEvaluationCycle(): Promise<void> {
 
     // Evaluate each symbol
     for (const symbol of config.symbols) {
+      // Collect data for all timeframes first
+      const timeframeDataMap = new Map<string, number[]>();
+      let primaryMarketData: MarketData | null = null;
+      const primaryTimeframe = config.timeframes[0] ?? '1h';
+      let fetchFailed = false;
+
       for (const timeframe of config.timeframes) {
         let marketData: MarketData;
 
         if (strategy.mode === 'simulation') {
-          // Simulation mode: generate synthetic data
           marketData = generateSimulationData(symbol, timeframe);
         } else {
-          // Real Binance data — no simulation fallback
           const env = (process.env.BINANCE_ENV ?? 'demo') as 'demo' | 'testnet' | 'production';
-
           const creds = await getBinanceCredentials(env);
           if (!creds) {
             addEvent('error', { message: 'Binance credentials not configured. Configure them in Settings.' });
-            continue;
+            fetchFailed = true;
+            break;
           }
 
           try {
@@ -114,12 +118,21 @@ export async function runEvaluationCycle(): Promise<void> {
           } catch (err) {
             addEvent('error', { message: 'Failed to fetch Binance data' });
             logger.error({ err, symbol, timeframe }, 'Failed to fetch Binance klines, skipping cycle');
-            continue;
+            fetchFailed = true;
+            break;
           }
         }
 
-        // Evaluate signal
-        let signal = evaluateSignal(config, marketData);
+        timeframeDataMap.set(timeframe, marketData.closes);
+        if (timeframe === primaryTimeframe) {
+          primaryMarketData = marketData;
+        }
+      }
+
+      if (fetchFailed || !primaryMarketData) continue;
+
+        // Evaluate signal on primary timeframe with all timeframe data
+        let signal = evaluateSignal(config, primaryMarketData, timeframeDataMap);
 
         // BTC stability gate: block BUY signals when BTC is unstable
         if (signal.signalType === 'BUY_SIGNAL' && config.btcStability?.enabled) {
@@ -149,7 +162,7 @@ export async function runEvaluationCycle(): Promise<void> {
             strategyId: strategy.id,
             strategyVersionId: versionId,
             symbol,
-            timeframe,
+            timeframe: primaryTimeframe,
             signalType: signal.signalType,
             rsiValue: signal.rsiValue,
             price: signal.price,
@@ -157,7 +170,7 @@ export async function runEvaluationCycle(): Promise<void> {
           },
         });
 
-        addEvent('signal', { symbol, timeframe, signalType: signal.signalType, rsi: signal.rsiValue });
+        addEvent('signal', { symbol, timeframe: primaryTimeframe, signalType: signal.signalType, rsi: signal.rsiValue });
 
         // If BUY or SELL signal, apply risk and execute
         if (signal.signalType === 'BUY_SIGNAL' || signal.signalType === 'SELL_SIGNAL') {
@@ -663,7 +676,6 @@ export async function runEvaluationCycle(): Promise<void> {
           lastSignalType: signal.signalType,
           cycleCount: botState.cycleCount + 1,
         });
-      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

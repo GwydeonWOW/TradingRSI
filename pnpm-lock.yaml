@@ -120,6 +120,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@cryptorsi/indicators':
+        specifier: workspace:*
+        version: link:../../packages/indicators
       '@cryptorsi/shared':
         specifier: workspace:*
         version: link:../../packages/shared

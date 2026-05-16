@@ -7,6 +7,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { EquityCurveChart } from '../components/EquityCurveChart.tsx';
 import { CandlestickChart, type CandleData } from '../components/CandlestickChart.tsx';
 import { EmptyState } from '../components/EmptyState.tsx';
+import { calculateRsi } from '@cryptorsi/indicators';
 
 const INTERVALS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
 
@@ -124,6 +125,7 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
 function TradesTable({ trades, symbol, interval }: { trades: BacktestTrade[]; symbol: string; interval: string }) {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [chartData, setChartData] = useState<CandleData[]>([]);
+  const [rsiData, setRsiData] = useState<Array<{ time: number; value: number }>>([]);
   const [chartLoading, setChartLoading] = useState(false);
 
   if (trades.length === 0) return null;
@@ -135,6 +137,7 @@ function TradesTable({ trades, symbol, interval }: { trades: BacktestTrade[]; sy
     }
     setExpandedIdx(idx);
     setChartData([]);
+    setRsiData([]);
     setChartLoading(true);
 
     const t = trades[idx]!;
@@ -147,18 +150,30 @@ function TradesTable({ trades, symbol, interval }: { trades: BacktestTrade[]; sy
         endTime: t.exitTime + padMs,
         limit: 500,
       });
-      setChartData(
-        res.data.map((k) => ({
-          time: Math.floor(k.openTime / 1000),
-          open: parseFloat(k.open),
-          high: parseFloat(k.high),
-          low: parseFloat(k.low),
-          close: parseFloat(k.close),
-          volume: parseFloat(k.volume),
-        })),
-      );
+      const candles = res.data.map((k) => ({
+        time: Math.floor(k.openTime / 1000),
+        open: parseFloat(k.open),
+        high: parseFloat(k.high),
+        low: parseFloat(k.low),
+        close: parseFloat(k.close),
+        volume: parseFloat(k.volume),
+      }));
+      setChartData(candles);
+
+      // Calculate RSI from closes
+      const closes = candles.map((c) => c.close);
+      const rsiValues = calculateRsi(closes, 14);
+      const rsiPoints: Array<{ time: number; value: number }> = [];
+      for (let i = 0; i < rsiValues.length; i++) {
+        const rsi = rsiValues[i];
+        if (rsi !== undefined && !Number.isNaN(rsi)) {
+          rsiPoints.push({ time: candles[i]!.time, value: rsi });
+        }
+      }
+      setRsiData(rsiPoints);
     } catch {
       setChartData([]);
+      setRsiData([]);
     } finally {
       setChartLoading(false);
     }
@@ -253,6 +268,14 @@ function TradesTable({ trades, symbol, interval }: { trades: BacktestTrade[]; sy
                           data={chartData}
                           height={300}
                           showVolume={false}
+                          rsiData={rsiData}
+                          tradeRange={{
+                            entryTime: Math.floor(t.entryTime / 1000),
+                            exitTime: Math.floor(t.exitTime / 1000),
+                            entryPrice: t.entryPrice,
+                            exitPrice: t.exitPrice,
+                            pnlPct: t.pnlPct,
+                          }}
                           markers={[
                             {
                               time: Math.floor(t.entryTime / 1000),

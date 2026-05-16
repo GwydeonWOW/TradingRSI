@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './client.ts';
+import { apiGet, apiPost, apiPut } from './client.ts';
 
 export interface AuthUser {
   id: string;
@@ -12,6 +12,7 @@ export interface PendingUser {
   id: string;
   role: string;
   mfaEnabled: boolean;
+  email: string | null;
   createdAt: string;
 }
 
@@ -31,5 +32,7 @@ export const authApi = {
   approveUser: (id: string, data?: { role?: string }) => apiPost<{ success: true; data: { id: string; role: string } }>(`/auth/users/${id}/approve`, data),
   createUser: (data: { email: string; password: string; role?: string }) =>
     apiPost<{ success: true; data: { id: string; role: string } }>('/auth/users', data),
+  updateUserRole: (id: string, data: { role: string }) =>
+    apiPut<{ success: true; data: { id: string; role: string } }>(`/auth/users/${id}/role`, data),
   seedAdmin: () => apiPost<{ success: true; data: { message: string } }>('/auth/seed-admin'),
 };

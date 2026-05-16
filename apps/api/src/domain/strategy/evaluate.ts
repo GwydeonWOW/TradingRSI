@@ -122,21 +122,41 @@ export function evaluateSignal(
 
     // Multi-timeframe confirmation
     if (entry.requireMultiTimeframeConfirmation && allTimeframeData) {
-      const allConfirmed = confirmMultiTimeframe(allTimeframeData, entry.rsiBelow);
-      if (!allConfirmed) {
-        reasons.push('Multi-timeframe confirmation failed');
-        return {
-          signalType: 'HOLD',
-          rsiValue,
-          smaValue,
-          price: currentPrice,
-          symbol,
-          timeframe,
-          reasons,
-          timestamp: Date.now(),
-        };
+      // New: per-timeframe conditions
+      if (entry.multiTimeframeConditions && entry.multiTimeframeConditions.length > 0) {
+        const allConfirmed = confirmMultiTimeframeConditions(allTimeframeData, entry.multiTimeframeConditions);
+        if (!allConfirmed) {
+          reasons.push('Multi-timeframe conditions not met');
+          return {
+            signalType: 'HOLD',
+            rsiValue,
+            smaValue,
+            price: currentPrice,
+            symbol,
+            timeframe,
+            reasons,
+            timestamp: Date.now(),
+          };
+        }
+        reasons.push('Multi-timeframe conditions passed');
+      } else {
+        // Legacy: same threshold for all timeframes
+        const allConfirmed = confirmMultiTimeframe(allTimeframeData, entry.rsiBelow);
+        if (!allConfirmed) {
+          reasons.push('Multi-timeframe confirmation failed');
+          return {
+            signalType: 'HOLD',
+            rsiValue,
+            smaValue,
+            price: currentPrice,
+            symbol,
+            timeframe,
+            reasons,
+            timestamp: Date.now(),
+          };
+        }
+        reasons.push('Multi-timeframe confirmation passed');
       }
-      reasons.push('Multi-timeframe confirmation passed');
     }
 
     return {
@@ -175,6 +195,24 @@ function confirmMultiTimeframe(
     if (lastRsi === undefined || Number.isNaN(lastRsi) || lastRsi > rsiThreshold) {
       return false;
     }
+  }
+  return true;
+}
+
+function confirmMultiTimeframeConditions(
+  allTimeframeData: Map<string, number[]>,
+  conditions: Array<{ timeframe: string; rsiBelow?: number; rsiAbove?: number }>,
+): boolean {
+  for (const cond of conditions) {
+    const closes = allTimeframeData.get(cond.timeframe);
+    if (!closes || closes.length < 15) return false;
+
+    const rsiValues = calculateRsi(closes, 14);
+    const rsi = rsiValues[rsiValues.length - 1];
+    if (rsi === undefined || Number.isNaN(rsi)) return false;
+
+    if (cond.rsiBelow !== undefined && rsi > cond.rsiBelow) return false;
+    if (cond.rsiAbove !== undefined && rsi < cond.rsiAbove) return false;
   }
   return true;
 }

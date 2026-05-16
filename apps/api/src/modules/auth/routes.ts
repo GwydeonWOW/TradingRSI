@@ -49,8 +49,13 @@ export async function authRoutes(app: FastifyInstance) {
       const isFirstUser = userCount === 0;
       const role = isFirstUser ? 'admin' : 'pending';
 
+      const emailEncrypted = encrypt(body.email);
+
       const user = await prisma.user.create({
         data: {
+          emailCiphertext: emailEncrypted.ciphertext,
+          emailNonce: emailEncrypted.nonce,
+          emailTag: emailEncrypted.tag,
           emailLookupHash: lookupHash,
           passwordHash: await hashPassword(body.password),
           role,
@@ -247,10 +252,23 @@ export async function authRoutes(app: FastifyInstance) {
       if (!auth || auth.role !== 'admin') return reply.code(403).send({ success: false, error: { code: 'FORBIDDEN', message: 'Admin required' } });
 
       const users = await prisma.user.findMany({
-        select: { id: true, role: true, mfaEnabled: true, createdAt: true },
+        select: { id: true, role: true, mfaEnabled: true, createdAt: true, emailCiphertext: true, emailNonce: true, emailTag: true },
         orderBy: { createdAt: 'desc' },
       });
-      return reply.code(200).send({ success: true, data: users });
+
+      const data = users.map((u) => {
+        let email: string | null = null;
+        if (u.emailCiphertext && u.emailNonce && u.emailTag) {
+          try {
+            email = decrypt(u.emailCiphertext, u.emailNonce, u.emailTag);
+          } catch {
+            email = null;
+          }
+        }
+        return { id: u.id, role: u.role, mfaEnabled: u.mfaEnabled, createdAt: u.createdAt, email };
+      });
+
+      return reply.code(200).send({ success: true, data });
     } catch {
       return reply.code(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } });
     }
@@ -298,8 +316,13 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(409).send({ success: false, error: { code: 'CONFLICT', message: 'Email already registered' } });
       }
 
+      const emailEncrypted = encrypt(body.email);
+
       const user = await prisma.user.create({
         data: {
+          emailCiphertext: emailEncrypted.ciphertext,
+          emailNonce: emailEncrypted.nonce,
+          emailTag: emailEncrypted.tag,
           emailLookupHash: lookupHash,
           passwordHash: await hashPassword(body.password),
           role: assignRole,
@@ -312,6 +335,38 @@ export async function authRoutes(app: FastifyInstance) {
     } catch (err) {
       logger.error(err, 'Admin user creation failed');
       return reply.code(500).send({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create user' } });
+    }
+  });
+
+  // PUT /api/auth/users/:id/role — admin changes user role
+  app.put('/api/auth/users/:id/role', async (request, reply) => {
+    try {
+      const auth = (request as any).auth as JwtPayload | undefined;
+      if (!auth || auth.role !== 'admin') {
+        return reply.code(403).send({ success: false, error: { code: 'FORBIDDEN', message: 'Admin required' } });
+      }
+
+      const { id } = request.params as { id: string };
+      const body = request.body as { role?: string };
+      if (!body.role || !['user', 'operator'].includes(body.role)) {
+        return reply.code(400).send({ success: false, error: { code: 'VALIDATION', message: 'Role must be "user" or "operator"' } });
+      }
+
+      const target = await prisma.user.findUnique({ where: { id } });
+      if (!target) {
+        return reply.code(404).send({ success: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
+      }
+      if (target.role === 'admin') {
+        return reply.code(400).send({ success: false, error: { code: 'VALIDATION', message: 'Cannot change admin role' } });
+      }
+
+      await prisma.user.update({ where: { id }, data: { role: body.role } });
+      await createAuditEvent({ actorType: 'user', eventType: 'user.role_changed', entityType: 'user', entityId: id, payload: { changedBy: auth.userId, newRole: body.role } });
+
+      return reply.code(200).send({ success: true, data: { id, role: body.role } });
+    } catch (err) {
+      logger.error(err, 'Role update failed');
+      return reply.code(500).send({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update role' } });
     }
   });
 

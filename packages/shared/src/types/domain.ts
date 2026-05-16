@@ -23,6 +23,12 @@ export interface StrategyConfig {
   };
 }
 
+export interface TimeframeCondition {
+  timeframe: string;
+  rsiBelow?: number;
+  rsiAbove?: number;
+}
+
 export interface EntryConfig {
   entryMode?: 'rsi_threshold' | 'divergence';
   rsiBelow: number;
@@ -30,6 +36,7 @@ export interface EntryConfig {
   rsiPeriod?: number;
   useRsiDivergence?: boolean;
   requireMultiTimeframeConfirmation: boolean;
+  multiTimeframeConditions?: TimeframeCondition[];
   useSmaFilter: boolean;
   smaPeriod: number;
   useVolumeConfirmation?: boolean;

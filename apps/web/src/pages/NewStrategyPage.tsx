@@ -335,6 +335,56 @@ function StepEntry({ config, onUpdate }: { config: StrategyConfig; onUpdate: <K 
               onChange={(e) => onUpdate('entry', { ...config.entry, requireMultiTimeframeConfirmation: e.target.checked })} className="h-4 w-4 rounded border-border bg-bg-primary accent-accent" />
             Confirmacion multi-timeframe
           </label>
+          {config.entry.requireMultiTimeframeConfirmation && (
+            <div className="space-y-2 pl-6">
+              <p className="text-xs text-text-muted">Condiciones por timeframe (RSI debe cumplir TODAS para señal de compra)</p>
+              {(config.entry.multiTimeframeConditions ?? []).map((cond, idx) => (
+                <div key={idx} className="flex items-end gap-2">
+                  <div className="w-20">
+                    <label className={labelClass}>Timeframe</label>
+                    <select className={inputClass} value={cond.timeframe}
+                      onChange={(e) => {
+                        const conditions = [...(config.entry.multiTimeframeConditions ?? [])];
+                        conditions[idx] = { ...conditions[idx]!, timeframe: e.target.value };
+                        onUpdate('entry', { ...config.entry, multiTimeframeConditions: conditions });
+                      }}>
+                      {['1m','5m','15m','30m','1h','4h','1d'].map((tf) => (
+                        <option key={tf} value={tf}>{tf}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-20">
+                    <label className={labelClass}>RSI &gt;=</label>
+                    <input type="number" min={0} max={100} className={inputClass} value={cond.rsiAbove ?? ''}
+                      placeholder="—"
+                      onChange={(e) => {
+                        const conditions = [...(config.entry.multiTimeframeConditions ?? [])];
+                        conditions[idx] = { ...conditions[idx]!, rsiAbove: e.target.value ? Number(e.target.value) : undefined };
+                        onUpdate('entry', { ...config.entry, multiTimeframeConditions: conditions });
+                      }} />
+                  </div>
+                  <div className="w-20">
+                    <label className={labelClass}>RSI &lt;=</label>
+                    <input type="number" min={0} max={100} className={inputClass} value={cond.rsiBelow ?? ''}
+                      placeholder="—"
+                      onChange={(e) => {
+                        const conditions = [...(config.entry.multiTimeframeConditions ?? [])];
+                        conditions[idx] = { ...conditions[idx]!, rsiBelow: e.target.value ? Number(e.target.value) : undefined };
+                        onUpdate('entry', { ...config.entry, multiTimeframeConditions: conditions });
+                      }} />
+                  </div>
+                  <button type="button" onClick={() => {
+                    const conditions = (config.entry.multiTimeframeConditions ?? []).filter((_, i) => i !== idx);
+                    onUpdate('entry', { ...config.entry, multiTimeframeConditions: conditions });
+                  }} className="text-xs text-danger hover:text-danger/80 pb-1">✕</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => {
+                const conditions = [...(config.entry.multiTimeframeConditions ?? []), { timeframe: '15m' }];
+                onUpdate('entry', { ...config.entry, multiTimeframeConditions: conditions });
+              }} className="text-xs text-accent hover:text-accent-hover">+ Añadir timeframe</button>
+            </div>
+          )}
           <label className="flex items-center gap-2 text-sm text-text-primary">
             <input type="checkbox" checked={config.entry.useSmaFilter}
               onChange={(e) => onUpdate('entry', { ...config.entry, useSmaFilter: e.target.checked })} className="h-4 w-4 rounded border-border bg-bg-primary accent-accent" />

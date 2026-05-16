@@ -9,6 +9,7 @@ export function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
+  const [updatingRole, setUpdatingRole] = useState<string | null>(null);
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<string>('user');
@@ -46,6 +47,19 @@ export function UsersPage() {
       setError(err instanceof Error ? err.message : 'Error al aprobar usuario');
     } finally {
       setApproving(null);
+    }
+  }
+
+  async function handleRoleChange(id: string, role: string) {
+    setUpdatingRole(id);
+    setError(null);
+    try {
+      await authApi.updateUserRole(id, { role });
+      await fetchUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cambiar rol');
+    } finally {
+      setUpdatingRole(null);
     }
   }
 
@@ -95,7 +109,7 @@ export function UsersPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border">
               <tr>
-                <th className="px-4 py-3 font-medium text-text-muted">ID</th>
+                <th className="px-4 py-3 font-medium text-text-muted">Email</th>
                 <th className="px-4 py-3 font-medium text-text-muted">Rol</th>
                 <th className="px-4 py-3 font-medium text-text-muted">2FA</th>
                 <th className="px-4 py-3 font-medium text-text-muted">Creado</th>
@@ -105,7 +119,9 @@ export function UsersPage() {
             <tbody className="divide-y divide-border">
               {users.map((u) => (
                 <tr key={u.id}>
-                  <td className="px-4 py-3 font-mono text-xs text-text-primary">{u.id.slice(0, 8)}...</td>
+                  <td className="px-4 py-3 text-sm text-text-primary">
+                    {u.email ?? <span className="text-text-muted">N/A</span>}
+                  </td>
                   <td className="px-4 py-3">{roleBadge(u.role)}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs ${u.mfaEnabled ? 'text-success' : 'text-text-muted'}`}>
@@ -142,6 +158,16 @@ export function UsersPage() {
                           {approving === u.id ? 'Aprobando...' : 'Aprobar'}
                         </button>
                       </div>
+                    ) : u.role !== 'admin' ? (
+                      <select
+                        className={`${selectClass} text-xs py-1`}
+                        value={u.role}
+                        disabled={updatingRole === u.id}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                      >
+                        <option value="user">Usuario</option>
+                        <option value="operator">Operador</option>
+                      </select>
                     ) : (
                       <span className="text-xs text-text-muted">-</span>
                     )}
@@ -206,7 +232,7 @@ export function UsersPage() {
           <li>El primer usuario registrado se convierte automaticamente en admin.</li>
           <li>Los siguientes usuarios necesitan aprobacion del admin para acceder.</li>
           <li><strong>Operador:</strong> puede operar el bot y ver ordenes. Debe tener 2FA activado.</li>
-          <li>Los usuarios pueden activar 2FA desde su pagina de Seguridad.</li>
+          <li>Puedes cambiar el rol de usuarios existentes desde el dropdown de la tabla.</li>
         </ul>
       </div>
     </div>
