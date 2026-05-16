@@ -84,7 +84,7 @@ export function StrategyEditorPage() {
       setStrategyName(s.name);
       setStrategyDescription(s.description ?? '');
       if (s.versions.length > 0) {
-        const latestVersion = s.versions[s.versions.length - 1]!;
+        const latestVersion = s.versions[0]!;
         const versionRes = await strategiesApi.getVersion(id!, latestVersion.id);
         setConfig(versionRes.data.config);
       } else {
