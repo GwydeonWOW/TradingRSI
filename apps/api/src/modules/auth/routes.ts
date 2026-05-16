@@ -27,17 +27,10 @@ export function verifyToken(request: FastifyRequest): JwtPayload | null {
 }
 
 export async function authRoutes(app: FastifyInstance) {
-  // POST /api/auth/register — only allowed during initial setup or by admin
+  // POST /api/auth/register — open for all; first user is admin, rest are pending (need approval)
   app.post('/api/auth/register', async (request, reply) => {
     try {
-      const auth = (request as any).auth as JwtPayload | undefined;
-      const isAdmin = auth && auth.role === 'admin';
       const userCount = await prisma.user.count();
-
-      // Allow if: no users yet (initial setup) OR request is from an admin
-      if (userCount > 0 && !isAdmin) {
-        return reply.code(403).send({ success: false, error: { code: 'SETUP_COMPLETE', message: 'Setup already completed' } });
-      }
 
       const body = request.body as { email?: string; password?: string };
       if (!body.email || !body.password) {
@@ -53,18 +46,21 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(409).send({ success: false, error: { code: 'CONFLICT', message: 'Email already registered' } });
       }
 
+      const isFirstUser = userCount === 0;
+      const role = isFirstUser ? 'admin' : 'pending';
+
       const user = await prisma.user.create({
         data: {
           emailLookupHash: lookupHash,
           passwordHash: await hashPassword(body.password),
-          role: userCount === 0 ? 'admin' : 'user',
+          role,
         },
       });
 
-      await createAuditEvent({ actorType: 'system', eventType: 'user.registered', entityType: 'user', entityId: user.id, payload: { role: user.role } });
+      await createAuditEvent({ actorType: 'system', eventType: 'user.registered', entityType: 'user', entityId: user.id, payload: { role } });
 
-      const token = (app as any).jwt.sign({ userId: user.id, role: user.role, mfaVerified: false }, { expiresIn: JWT_EXPIRES_IN });
-      return reply.code(201).send({ success: true, data: { id: user.id, role: user.role, token } });
+      const token = (app as any).jwt.sign({ userId: user.id, role, mfaVerified: false }, { expiresIn: JWT_EXPIRES_IN });
+      return reply.code(201).send({ success: true, data: { id: user.id, role, token } });
     } catch (err) {
       logger.error(err, 'Registration failed');
       return reply.code(500).send({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Registration failed' } });
