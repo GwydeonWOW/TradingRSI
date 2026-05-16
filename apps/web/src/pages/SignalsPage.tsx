@@ -154,10 +154,10 @@ function SignalRow({
           <SignalTypePill signalType={signal.signalType} />
         </td>
         <td className="px-4 py-3 text-text-primary">
-          {signal.rsiValue !== null ? signal.rsiValue.toFixed(2) : '-'}
+          {signal.rsiValue !== null ? Number(signal.rsiValue).toFixed(2) : '-'}
         </td>
         <td className="px-4 py-3 text-text-primary">
-          {signal.price !== null ? `$${signal.price.toFixed(2)}` : '-'}
+          {signal.price !== null ? `$${Number(signal.price).toFixed(2)}` : '-'}
         </td>
         <td className="max-w-[200px] truncate px-4 py-3 text-text-secondary">
           {reasons.length > 0 ? reasons.join(', ') : '-'}
