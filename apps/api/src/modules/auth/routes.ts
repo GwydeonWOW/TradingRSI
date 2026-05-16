@@ -27,11 +27,15 @@ export function verifyToken(request: FastifyRequest): JwtPayload | null {
 }
 
 export async function authRoutes(app: FastifyInstance) {
-  // POST /api/auth/register — only allowed during initial setup
+  // POST /api/auth/register — only allowed during initial setup or by admin
   app.post('/api/auth/register', async (request, reply) => {
     try {
+      const auth = (request as any).auth as JwtPayload | undefined;
+      const isAdmin = auth && auth.role === 'admin';
       const userCount = await prisma.user.count();
-      if (userCount > 0) {
+
+      // Allow if: no users yet (initial setup) OR request is from an admin
+      if (userCount > 0 && !isAdmin) {
         return reply.code(403).send({ success: false, error: { code: 'SETUP_COMPLETE', message: 'Setup already completed' } });
       }
 
@@ -53,11 +57,11 @@ export async function authRoutes(app: FastifyInstance) {
         data: {
           emailLookupHash: lookupHash,
           passwordHash: await hashPassword(body.password),
-          role: 'admin',
+          role: userCount === 0 ? 'admin' : 'user',
         },
       });
 
-      await createAuditEvent({ actorType: 'system', eventType: 'user.registered', entityType: 'user', entityId: user.id, payload: { role: 'admin' } });
+      await createAuditEvent({ actorType: 'system', eventType: 'user.registered', entityType: 'user', entityId: user.id, payload: { role: user.role } });
 
       const token = (app as any).jwt.sign({ userId: user.id, role: user.role, mfaVerified: false }, { expiresIn: JWT_EXPIRES_IN });
       return reply.code(201).send({ success: true, data: { id: user.id, role: user.role, token } });
@@ -268,6 +272,45 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(200).send({ success: true, data: { id, role: 'user' } });
     } catch {
       return reply.code(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } });
+    }
+  });
+
+  // POST /api/auth/users — admin creates a new user
+  app.post('/api/auth/users', async (request, reply) => {
+    try {
+      const auth = (request as any).auth as JwtPayload | undefined;
+      if (!auth || auth.role !== 'admin') {
+        return reply.code(403).send({ success: false, error: { code: 'FORBIDDEN', message: 'Admin required' } });
+      }
+
+      const body = request.body as { email?: string; password?: string };
+      if (!body.email || !body.password) {
+        return reply.code(400).send({ success: false, error: { code: 'VALIDATION', message: 'Email and password required' } });
+      }
+      if (body.password.length < 8) {
+        return reply.code(400).send({ success: false, error: { code: 'VALIDATION', message: 'Password must be at least 8 characters' } });
+      }
+
+      const lookupHash = crypto.createHash('sha256').update(body.email.toLowerCase()).digest('hex');
+      const existing = await prisma.user.findUnique({ where: { emailLookupHash: lookupHash } });
+      if (existing) {
+        return reply.code(409).send({ success: false, error: { code: 'CONFLICT', message: 'Email already registered' } });
+      }
+
+      const user = await prisma.user.create({
+        data: {
+          emailLookupHash: lookupHash,
+          passwordHash: await hashPassword(body.password),
+          role: 'user',
+        },
+      });
+
+      await createAuditEvent({ actorType: 'user', eventType: 'user.created_by_admin', entityType: 'user', entityId: user.id, payload: { createdBy: auth.userId } });
+
+      return reply.code(201).send({ success: true, data: { id: user.id, role: user.role } });
+    } catch (err) {
+      logger.error(err, 'Admin user creation failed');
+      return reply.code(500).send({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create user' } });
     }
   });
 

@@ -9,6 +9,12 @@ export function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const inputClass =
+    'w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -127,6 +133,45 @@ export function UsersPage() {
           </table>
         </div>
       )}
+
+      <div className="mt-6 rounded-lg border border-border bg-bg-secondary p-4">
+        <h2 className="mb-3 text-sm font-medium text-text-primary">Crear Nuevo Usuario</h2>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!newEmail || !newPassword) return;
+            setCreating(true);
+            setError(null);
+            try {
+              await authApi.createUser({ email: newEmail, password: newPassword });
+              setNewEmail('');
+              setNewPassword('');
+              await fetchUsers();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Error al crear usuario');
+            } finally {
+              setCreating(false);
+            }
+          }}
+          className="flex items-end gap-3"
+        >
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-medium text-text-secondary">Email</label>
+            <input type="email" className={inputClass} value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required placeholder="user@example.com" />
+          </div>
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-medium text-text-secondary">Contrasena</label>
+            <input type="password" className={inputClass} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} placeholder="Minimo 8 caracteres" />
+          </div>
+          <button
+            type="submit"
+            disabled={creating}
+            className="shrink-0 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+          >
+            {creating ? 'Creando...' : 'Crear'}
+          </button>
+        </form>
+      </div>
 
       <div className="mt-4 rounded-lg border border-border bg-bg-secondary p-4">
         <h2 className="mb-2 text-sm font-medium text-text-primary">Info</h2>

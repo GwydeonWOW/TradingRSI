@@ -71,8 +71,6 @@ export async function startStreams(symbols: string[], intervals: string[]): Prom
     state.klineWs.on('message', (data: Buffer) => {
       try {
         const msg = JSON.parse(data.toString());
-        // kline events are forwarded to the logger at debug level
-        // Future: emit events for real-time chart updates
         if (msg.e === 'kline') {
           logger.debug({
             symbol: msg.s,
@@ -97,11 +95,10 @@ export async function startStreams(symbols: string[], intervals: string[]): Prom
     });
   }
 
-  // Start user data stream
+  // Start user data stream (best-effort — not all environments support it)
   const creds = await getBinanceCredentials(env);
   if (creds) {
     try {
-      // Create listen key
       const listenKeyRes = await fetch(`${envConfig.restBaseUrl}/v3/userDataStream`, {
         method: 'POST',
         headers: { 'X-MBX-APIKEY': creds.apiKey },
@@ -154,10 +151,10 @@ export async function startStreams(symbols: string[], intervals: string[]): Prom
           }
         }, 30 * 60 * 1000);
       } else {
-        logger.warn({ status: listenKeyRes.status }, 'Failed to create listen key');
+        logger.warn({ status: listenKeyRes.status }, 'User data stream not available (listen key creation failed) — kline stream active');
       }
     } catch (err) {
-      logger.error({ err }, 'Failed to start user data stream');
+      logger.warn({ err }, 'User data stream not available — kline stream active');
     }
   }
 }

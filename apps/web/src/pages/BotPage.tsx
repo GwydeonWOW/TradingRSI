@@ -548,14 +548,14 @@ export function BotPage() {
           <button
             onClick={handleStartStreams}
             className="rounded-lg bg-success px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-success/90 disabled:opacity-50"
-            disabled={streamActionLoading || (streamStatus?.klineConnected === true && streamStatus?.userStreamConnected === true)}
+            disabled={streamActionLoading || streamStatus?.klineConnected === true}
           >
             {streamActionLoading ? 'Iniciando...' : 'Iniciar Streams'}
           </button>
           <button
             onClick={handleStopStreams}
             className="rounded-lg border border-danger/50 bg-danger/10 px-4 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/20 disabled:opacity-50"
-            disabled={streamActionLoading || (!streamStatus?.klineConnected && !streamStatus?.userStreamConnected)}
+            disabled={streamActionLoading || !streamStatus?.klineConnected}
           >
             {streamActionLoading ? 'Deteniendo...' : 'Detener Streams'}
           </button>
