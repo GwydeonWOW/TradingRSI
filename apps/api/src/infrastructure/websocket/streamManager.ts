@@ -169,10 +169,7 @@ export class BinanceStreamManager {
     const config = BINANCE_ENVIRONMENTS[this.environment];
     const streams = Array.from(this.subscriptions.keys());
     if (streams.length === 0) return '';
-    if (streams.length === 1) {
-      return `${config.streamBaseUrl}/${streams[0]}`;
-    }
-    return `${config.streamBaseUrl}/stream?streams=${streams.join('/')}`;
+    return `${config.streamBaseUrl}/${streams.join('/')}`;
   }
 
   private connectKlineStream(): void {

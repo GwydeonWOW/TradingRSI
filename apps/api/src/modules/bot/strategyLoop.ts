@@ -156,6 +156,23 @@ export async function runEvaluationCycle(): Promise<void> {
           }
         }
 
+        // Signal dedup: skip if same symbol+type was created within cooldown
+        if (signal.signalType === 'BUY_SIGNAL' || signal.signalType === 'SELL_SIGNAL') {
+          const cooldownMs = (config.risk?.cooldownMinutes ?? 0) * 60 * 1000;
+          if (cooldownMs > 0) {
+            const recentSignal = await prisma.signal.findFirst({
+              where: {
+                strategyId: strategy.id,
+                symbol,
+                signalType: signal.signalType,
+                createdAt: { gte: new Date(Date.now() - cooldownMs) },
+              },
+              select: { id: true },
+            });
+            if (recentSignal) continue;
+          }
+        }
+
         // Save signal to DB
         const savedSignal = await prisma.signal.create({
           data: {
@@ -188,6 +205,14 @@ export async function runEvaluationCycle(): Promise<void> {
             where: { strategyId: strategy.id, status: 'open' },
           });
 
+          // Lookup last order timestamp for cooldown
+          const lastOrder = await prisma.exchangeOrder.findFirst({
+            where: { strategyId: strategy.id, symbol },
+            orderBy: { createdAt: 'desc' },
+            select: { createdAt: true },
+          });
+          const lastTradeTimestamp = lastOrder?.createdAt?.getTime() ?? null;
+
           const riskCtx: RiskContext = {
             config,
             symbol,
@@ -199,7 +224,7 @@ export async function runEvaluationCycle(): Promise<void> {
             totalExposure: openPositions.reduce((sum, p) => sum + Number(p.investedQuote ?? 0), 0),
             dailyLoss: 0,
             dailyLossPct: 0,
-            lastTradeTimestamp: null,
+            lastTradeTimestamp,
             allowLiveTrading: process.env.ALLOW_LIVE_TRADING === 'true',
           };
 
