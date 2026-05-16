@@ -6,7 +6,7 @@ interface StreamStatusBadgeProps {
 
 export function StreamStatusBadge({ klineConnected, userStreamConnected, subscriptionsCount }: StreamStatusBadgeProps) {
   const allConnected = klineConnected && userStreamConnected;
-  const someConnected = klineConnected || userStreamConnected;
+  const klineOnly = klineConnected && !userStreamConnected;
 
   if (allConnected) {
     return (
@@ -18,11 +18,12 @@ export function StreamStatusBadge({ klineConnected, userStreamConnected, subscri
     );
   }
 
-  if (someConnected) {
+  if (klineOnly) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 px-3 py-1 text-sm font-medium text-warning">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-sm font-medium text-success">
         <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
-        Conectando...
+        Kline Activo
+        <span className="ml-1 text-xs opacity-75">({subscriptionsCount})</span>
       </span>
     );
   }

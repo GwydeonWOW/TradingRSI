@@ -533,8 +533,8 @@ export function BotPage() {
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-text-muted">User Stream</span>
-            <span className={streamStatus?.userStreamConnected ? 'text-success' : 'text-text-muted'}>
-              {streamStatus?.userStreamConnected ? 'Conectado' : 'Desconectado'}
+            <span className={streamStatus?.userStreamConnected ? 'text-success' : streamStatus?.klineConnected ? 'text-text-muted' : 'text-danger'}>
+              {streamStatus?.userStreamConnected ? 'Conectado' : streamStatus?.klineConnected ? 'No disponible (Demo)' : 'Desconectado'}
             </span>
           </div>
           {streamStatus?.listenKeyAge != null && (

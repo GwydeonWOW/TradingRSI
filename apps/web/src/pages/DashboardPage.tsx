@@ -180,7 +180,7 @@ export function DashboardPage() {
               : 'Sin datos'
           }
           subtitle={streamStatus?.klineConnected ? `${streamStatus.subscriptionsCount} suscripciones` : undefined}
-          variant={streamStatus?.klineConnected && streamStatus?.userStreamConnected ? 'success' : streamStatus ? 'warning' : 'default'}
+          variant={streamStatus?.klineConnected ? 'success' : streamStatus ? 'warning' : 'default'}
         />
       </div>
 
