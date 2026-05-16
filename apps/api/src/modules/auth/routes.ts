@@ -41,7 +41,7 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       const lookupHash = crypto.createHash('sha256').update(body.email.toLowerCase()).digest('hex');
-      const existing = await prisma.user.findUnique({ where: { emailLookupHash: lookupHash } });
+      const existing = await prisma.user.findUnique({ where: { emailLookupHash: lookupHash }, select: { id: true } });
       if (existing) {
         return reply.code(409).send({ success: false, error: { code: 'CONFLICT', message: 'Email already registered' } });
       }
@@ -83,7 +83,10 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       const lookupHash = crypto.createHash('sha256').update(body.email.toLowerCase()).digest('hex');
-      const user = await prisma.user.findUnique({ where: { emailLookupHash: lookupHash } });
+      const user = await prisma.user.findUnique({
+        where: { emailLookupHash: lookupHash },
+        select: { id: true, role: true, passwordHash: true, mfaEnabled: true },
+      });
       if (!user) {
         return reply.code(401).send({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' } });
       }
@@ -173,7 +176,7 @@ export async function authRoutes(app: FastifyInstance) {
         })),
       });
 
-      await prisma.user.update({ where: { id: auth.userId }, data: { mfaEnabled: true } });
+      await prisma.user.update({ where: { id: auth.userId }, data: { mfaEnabled: true }, select: { id: true } });
 
       const newToken = (app as any).jwt.sign({ userId: auth.userId, role: auth.role, mfaVerified: true }, { expiresIn: JWT_EXPIRES_IN });
       return reply.code(200).send({ success: true, data: { enabled: true, recoveryCodes: codes, token: newToken } });
@@ -233,7 +236,10 @@ export async function authRoutes(app: FastifyInstance) {
       const auth = (request as any).auth as JwtPayload | undefined;
       if (!auth) return reply.code(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } });
 
-      const user = await prisma.user.findUnique({ where: { id: auth.userId } });
+      const user = await prisma.user.findUnique({
+        where: { id: auth.userId },
+        select: { id: true, role: true, mfaEnabled: true, mfaRequired: true, createdAt: true },
+      });
       if (!user) return reply.code(404).send({ success: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
 
       return reply.code(200).send({
@@ -284,7 +290,7 @@ export async function authRoutes(app: FastifyInstance) {
       const approveBody = request.body as { role?: string } | undefined;
       const targetRole = approveBody?.role === 'operator' ? 'operator' : 'user';
 
-      await prisma.user.update({ where: { id }, data: { role: targetRole } });
+      await prisma.user.update({ where: { id }, data: { role: targetRole }, select: { id: true } });
       await createAuditEvent({ actorType: 'user', eventType: 'user.approved', entityType: 'user', entityId: id, payload: { approvedBy: auth.userId, role: targetRole } });
       return reply.code(200).send({ success: true, data: { id, role: targetRole } });
     } catch {
@@ -311,7 +317,7 @@ export async function authRoutes(app: FastifyInstance) {
       const assignRole = body.role === 'operator' ? 'operator' : 'user';
 
       const lookupHash = crypto.createHash('sha256').update(body.email.toLowerCase()).digest('hex');
-      const existing = await prisma.user.findUnique({ where: { emailLookupHash: lookupHash } });
+      const existing = await prisma.user.findUnique({ where: { emailLookupHash: lookupHash }, select: { id: true } });
       if (existing) {
         return reply.code(409).send({ success: false, error: { code: 'CONFLICT', message: 'Email already registered' } });
       }
@@ -352,7 +358,7 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ success: false, error: { code: 'VALIDATION', message: 'Role must be "user" or "operator"' } });
       }
 
-      const target = await prisma.user.findUnique({ where: { id } });
+      const target = await prisma.user.findUnique({ where: { id }, select: { id: true, role: true } });
       if (!target) {
         return reply.code(404).send({ success: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
       }
@@ -360,7 +366,7 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ success: false, error: { code: 'VALIDATION', message: 'Cannot change admin role' } });
       }
 
-      await prisma.user.update({ where: { id }, data: { role: body.role } });
+      await prisma.user.update({ where: { id }, data: { role: body.role }, select: { id: true } });
       await createAuditEvent({ actorType: 'user', eventType: 'user.role_changed', entityType: 'user', entityId: id, payload: { changedBy: auth.userId, newRole: body.role } });
 
       return reply.code(200).send({ success: true, data: { id, role: body.role } });
