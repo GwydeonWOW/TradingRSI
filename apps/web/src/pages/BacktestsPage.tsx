@@ -1,15 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { strategiesApi, backtestsApi } from '../api/strategies.ts';
 import { tradingApi } from '../api/trading.ts';
 import type { StrategyListItem, BacktestResult, BacktestMetrics, BacktestTrade } from '../api/strategies.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { EquityCurveChart } from '../components/EquityCurveChart.tsx';
-import { CandlestickChart, type CandleData } from '../components/CandlestickChart.tsx';
+import { CandlestickChart, type CandleData, type RsiSeriesConfig } from '../components/CandlestickChart.tsx';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { calculateRsi } from '@cryptorsi/indicators';
 
 const INTERVALS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
+const RSI_COLORS = ['#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#3b82f6'];
+
+function intervalToMs(interval: string): number {
+  const m = interval.match(/^(\d+)(m|h|d)$/);
+  if (!m) return 3600000;
+  const n = parseInt(m[1]!);
+  if (m[2] === 'm') return n * 60000;
+  if (m[2] === 'h') return n * 3600000;
+  return n * 86400000;
+}
+
+interface RsiTimeframeInfo {
+  timeframe: string;
+  label: string;
+  color: string;
+}
 
 function formatDateInput(d: Date): string {
   return d.toISOString().split('T')[0] ?? '';
@@ -122,10 +138,10 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
   );
 }
 
-function TradesTable({ trades, symbol, interval }: { trades: BacktestTrade[]; symbol: string; interval: string }) {
+function TradesTable({ trades, symbol, interval, rsiTimeframes }: { trades: BacktestTrade[]; symbol: string; interval: string; rsiTimeframes: RsiTimeframeInfo[] }) {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [chartData, setChartData] = useState<CandleData[]>([]);
-  const [rsiData, setRsiData] = useState<Array<{ time: number; value: number }>>([]);
+  const [rsiSeriesData, setRsiSeriesData] = useState<RsiSeriesConfig[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
 
   if (trades.length === 0) return null;
@@ -137,20 +153,22 @@ function TradesTable({ trades, symbol, interval }: { trades: BacktestTrade[]; sy
     }
     setExpandedIdx(idx);
     setChartData([]);
-    setRsiData([]);
+    setRsiSeriesData([]);
     setChartLoading(true);
 
     const t = trades[idx]!;
-    const padMs = 6 * 60 * 60 * 1000; // 6h padding around trade
+    const padMs = 6 * 60 * 60 * 1000;
     try {
-      const res = await tradingApi.getKlines({
+      // Fetch main interval with warm-up for RSI
+      const warmupMs = intervalToMs(interval) * 50;
+      const mainRes = await tradingApi.getKlines({
         symbol,
         interval,
-        startTime: t.entryTime - padMs,
+        startTime: t.entryTime - warmupMs - padMs,
         endTime: t.exitTime + padMs,
-        limit: 500,
+        limit: 1000,
       });
-      const candles = res.data.map((k) => ({
+      const mainCandles = mainRes.data.map((k) => ({
         time: Math.floor(k.openTime / 1000),
         open: parseFloat(k.open),
         high: parseFloat(k.high),
@@ -158,22 +176,48 @@ function TradesTable({ trades, symbol, interval }: { trades: BacktestTrade[]; sy
         close: parseFloat(k.close),
         volume: parseFloat(k.volume),
       }));
-      setChartData(candles);
+      setChartData(mainCandles);
 
-      // Calculate RSI from closes
-      const closes = candles.map((c) => c.close);
-      const rsiValues = calculateRsi(closes, 14);
-      const rsiPoints: Array<{ time: number; value: number }> = [];
-      for (let i = 0; i < rsiValues.length; i++) {
-        const rsi = rsiValues[i];
-        if (rsi !== undefined && !Number.isNaN(rsi)) {
-          rsiPoints.push({ time: candles[i]!.time, value: rsi });
+      // Calculate RSI for each timeframe
+      const allSeries: RsiSeriesConfig[] = [];
+      for (const tf of rsiTimeframes) {
+        let closes: number[];
+        let times: number[];
+
+        if (tf.timeframe === interval) {
+          closes = mainCandles.map((c) => c.close);
+          times = mainCandles.map((c) => c.time);
+        } else {
+          const tfWarmupMs = intervalToMs(tf.timeframe) * 50;
+          const tfRes = await tradingApi.getKlines({
+            symbol,
+            interval: tf.timeframe,
+            startTime: t.entryTime - tfWarmupMs - padMs,
+            endTime: t.exitTime + padMs,
+            limit: 1000,
+          });
+          const tfKlines = tfRes.data.map((k) => ({
+            time: Math.floor(k.openTime / 1000),
+            close: parseFloat(k.close),
+          }));
+          closes = tfKlines.map((c) => c.close);
+          times = tfKlines.map((c) => c.time);
         }
+
+        const rsiValues = calculateRsi(closes, 14);
+        const rsiPoints: Array<{ time: number; value: number }> = [];
+        for (let i = 0; i < rsiValues.length; i++) {
+          const rsi = rsiValues[i];
+          if (rsi !== undefined && !Number.isNaN(rsi)) {
+            rsiPoints.push({ time: times[i]!, value: rsi });
+          }
+        }
+        allSeries.push({ label: tf.label, color: tf.color, data: rsiPoints });
       }
-      setRsiData(rsiPoints);
+      setRsiSeriesData(allSeries);
     } catch {
       setChartData([]);
-      setRsiData([]);
+      setRsiSeriesData([]);
     } finally {
       setChartLoading(false);
     }
@@ -268,7 +312,7 @@ function TradesTable({ trades, symbol, interval }: { trades: BacktestTrade[]; sy
                           data={chartData}
                           height={300}
                           showVolume={false}
-                          rsiData={rsiData}
+                          rsiSeries={rsiSeriesData}
                           tradeRange={{
                             entryTime: Math.floor(t.entryTime / 1000),
                             exitTime: Math.floor(t.exitTime / 1000),
@@ -355,6 +399,7 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
 
   const [strategyId, setStrategyId] = useState(preselectedStrategyId ?? '');
   const [strategySymbols, setStrategySymbols] = useState<string[]>([]);
+  const [strategyConfig, setStrategyConfig] = useState<any>(null);
   const [interval, setInterval_] = useState('1h');
   const [startDate, setStartDate] = useState(formatDateInput(thirtyDaysAgo));
   const [endDate, setEndDate] = useState(formatDateInput(now));
@@ -370,13 +415,14 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
     const selected = strategies.find((s) => s.id === strategyId);
     if (selected) {
       setStrategySymbols(selected.symbols);
-      // Fetch strategy version config to get maxTotalExposureQuote as default capital
       strategiesApi.get(strategyId).then((res) => {
         const detail = res.data;
         if (detail.versions.length > 0) {
           const latestVersion = detail.versions[detail.versions.length - 1]!;
           strategiesApi.getVersion(strategyId, latestVersion.id).then((vRes) => {
-            const capital = vRes.data.config?.risk?.maxTotalExposureQuote;
+            const config = vRes.data.config;
+            setStrategyConfig(config);
+            const capital = config?.risk?.maxTotalExposureQuote;
             if (capital && capital > 0) {
               setInitialCapital(String(capital));
             }
@@ -385,8 +431,41 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
       }).catch(() => {});
     } else {
       setStrategySymbols([]);
+      setStrategyConfig(null);
     }
   }, [strategyId, strategies]);
+
+  // Compute RSI timeframes from strategy config + main interval
+  const rsiTimeframes = useMemo<RsiTimeframeInfo[]>(() => {
+    const result: RsiTimeframeInfo[] = [];
+    const seen = new Set<string>();
+
+    // Always include the main interval
+    if (!seen.has(interval)) {
+      seen.add(interval);
+      result.push({ timeframe: interval, label: `RSI ${interval} (14)`, color: RSI_COLORS[0]! });
+    }
+
+    // Add timeframes from multi-TF conditions
+    const conditions = strategyConfig?.entry?.multiTimeframeConditions;
+    if (Array.isArray(conditions)) {
+      for (const cond of conditions) {
+        if (seen.has(cond.timeframe)) continue;
+        seen.add(cond.timeframe);
+        const parts: string[] = [];
+        if (cond.rsiAbove !== undefined) parts.push(`>${cond.rsiAbove}`);
+        if (cond.rsiBelow !== undefined) parts.push(`<${cond.rsiBelow}`);
+        const suffix = parts.length > 0 ? ` (${parts.join(' & ')})` : '';
+        result.push({
+          timeframe: cond.timeframe,
+          label: `RSI ${cond.timeframe}${suffix}`,
+          color: RSI_COLORS[result.length % RSI_COLORS.length]!,
+        });
+      }
+    }
+
+    return result;
+  }, [strategyConfig, interval]);
 
   async function fetchStrategies() {
     setFetchingStrategies(true);
@@ -551,7 +630,7 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
           {/* Trades */}
           <div>
             <h3 className="mb-2 text-sm font-medium text-text-secondary">Trades ({result.trades.length})</h3>
-            <TradesTable trades={result.trades} symbol={(result.symbols ?? [])[0] ?? strategySymbols[0] ?? ''} interval={interval} />
+            <TradesTable trades={result.trades} symbol={(result.symbols ?? [])[0] ?? strategySymbols[0] ?? ''} interval={interval} rsiTimeframes={rsiTimeframes} />
           </div>
         </div>
       )}

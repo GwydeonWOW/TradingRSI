@@ -18,17 +18,23 @@ export interface TradeRange {
   pnlPct: number;
 }
 
+export interface RsiSeriesConfig {
+  label: string;
+  color: string;
+  data: Array<{ time: number; value: number }>;
+}
+
 interface CandlestickChartProps {
   data: CandleData[];
   height?: number;
   showVolume?: boolean;
   markers?: Array<{ time: number; position: 'aboveBar' | 'belowBar'; color: string; shape: 'arrowUp' | 'arrowDown' | 'circle'; text?: string }>;
   liquidityScores?: Array<{ time: number; value: number }>;
-  rsiData?: Array<{ time: number; value: number }>;
+  rsiSeries?: RsiSeriesConfig[];
   tradeRange?: TradeRange;
 }
 
-export function CandlestickChart({ data, height = 400, showVolume = true, markers, liquidityScores, rsiData, tradeRange }: CandlestickChartProps) {
+export function CandlestickChart({ data, height = 400, showVolume = true, markers, liquidityScores, rsiSeries, tradeRange }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rsiContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -151,25 +157,45 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
 
     // RSI sub-chart
     let rsiChart: IChartApi | null = null;
+    const hasRsi = rsiSeries && rsiSeries.length > 0 && rsiSeries.some((s) => s.data.length > 0);
 
-    if (rsiContainerRef.current && rsiData && rsiData.length > 0) {
-      rsiChart = createChart(rsiContainerRef.current, { ...darkTheme, height: 120 });
+    if (rsiContainerRef.current && hasRsi) {
+      rsiChart = createChart(rsiContainerRef.current, { ...darkTheme, height: 150 });
 
-      const rsiSeries = rsiChart.addSeries(LineSeries, {
-        color: '#8b5cf6',
-        lineWidth: 2,
+      // Reference lines
+      const refSeries = rsiChart.addSeries(LineSeries, {
+        color: 'transparent',
+        lineWidth: 1,
         priceLineVisible: false,
-        lastValueVisible: true,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
       });
+      refSeries.createPriceLine({ price: 70, color: '#ef4444', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '70' });
+      refSeries.createPriceLine({ price: 30, color: '#10b981', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '30' });
+      refSeries.createPriceLine({ price: 50, color: '#475569', lineWidth: 1, lineStyle: 1, axisLabelVisible: false, title: '' });
 
-      rsiSeries.createPriceLine({ price: 70, color: '#ef4444', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '' });
-      rsiSeries.createPriceLine({ price: 30, color: '#10b981', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '' });
-      rsiSeries.createPriceLine({ price: 50, color: '#475569', lineWidth: 1, lineStyle: 1, axisLabelVisible: false, title: '' });
+      // Seed the reference series with the full time range so lines span the chart
+      const allRsiPoints = rsiSeries.flatMap((s) => s.data);
+      if (allRsiPoints.length > 0) {
+        refSeries.setData([{ time: allRsiPoints[0]!.time as any, value: 50 }, { time: allRsiPoints[allRsiPoints.length - 1]!.time as any, value: 50 }]);
+      }
 
-      rsiSeries.setData(rsiData.map((d) => ({ time: d.time as any, value: d.value })));
+      // Draw each RSI series
+      for (const series of rsiSeries) {
+        if (series.data.length === 0) continue;
+        const line = rsiChart.addSeries(LineSeries, {
+          color: series.color,
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          title: series.label,
+        });
+        line.setData(series.data.map((d) => ({ time: d.time as any, value: d.value })));
+      }
+
       rsiChart.timeScale().fitContent();
 
-      // Sync time scales
+      // Sync time scales between candlestick and RSI charts
       let syncing = false;
       chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
         if (syncing || !range || !rsiChart) return;
@@ -201,15 +227,17 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
       chart.remove();
       chartRef.current = null;
     };
-  }, [data, height, showVolume, markers, liquidityScores, rsiData, tradeRange]);
+  }, [data, height, showVolume, markers, liquidityScores, rsiSeries, tradeRange]);
 
   return (
     <div className="w-full rounded-lg overflow-hidden">
       <div ref={containerRef} />
-      {rsiData && rsiData.length > 0 && (
+      {rsiSeries && rsiSeries.length > 0 && rsiSeries.some((s) => s.data.length > 0) && (
         <div>
-          <div className="flex items-center justify-between bg-[#0f1729] px-3 py-1">
-            <span className="text-xs font-medium text-[#8b5cf6]">RSI (14)</span>
+          <div className="flex items-center gap-4 bg-[#0f1729] px-3 py-1">
+            {rsiSeries.filter((s) => s.data.length > 0).map((s) => (
+              <span key={s.label} className="text-xs font-medium" style={{ color: s.color }}>{s.label}</span>
+            ))}
           </div>
           <div ref={rsiContainerRef} />
         </div>
