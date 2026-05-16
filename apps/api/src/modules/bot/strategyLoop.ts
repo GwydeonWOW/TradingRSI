@@ -192,7 +192,12 @@ export async function runEvaluationCycle(): Promise<void> {
           }
         }
 
-        // Save signal to DB
+        // Only persist actionable signals (BUY/SELL) to DB
+        // HOLD/BLOCKED are ephemeral — shown in event log only
+        addEvent('signal', { symbol, timeframe: primaryTimeframe, signalType: signal.signalType, rsi: signal.rsiValue });
+
+        if (signal.signalType !== 'BUY_SIGNAL' && signal.signalType !== 'SELL_SIGNAL') continue;
+
         const savedSignal = await prisma.signal.create({
           data: {
             strategyId: strategy.id,
@@ -206,10 +211,8 @@ export async function runEvaluationCycle(): Promise<void> {
           },
         });
 
-        addEvent('signal', { symbol, timeframe: primaryTimeframe, signalType: signal.signalType, rsi: signal.rsiValue });
-
-        // If BUY or SELL signal, apply risk and execute
-        if (signal.signalType === 'BUY_SIGNAL' || signal.signalType === 'SELL_SIGNAL') {
+        // Apply risk and execute
+        {
           // Get current positions for risk context
           const openPositions: Array<{
             id: string;
