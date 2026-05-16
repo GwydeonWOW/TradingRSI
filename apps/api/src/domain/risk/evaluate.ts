@@ -42,9 +42,11 @@ export function evaluateRisk(ctx: RiskContext): RiskResult {
   checks.push(check('max_total_exposure', ctx.totalExposure + ctx.config.risk.quoteAmountPerTrade <= ctx.config.risk.maxTotalExposureQuote,
     `Total exposure ${ctx.totalExposure} + ${ctx.config.risk.quoteAmountPerTrade} > max ${ctx.config.risk.maxTotalExposureQuote}`));
 
-  // Rule: Daily loss limit
-  checks.push(check('daily_loss_limit', ctx.dailyLossPct < ctx.config.risk.maxDailyLossPct,
-    `Daily loss ${ctx.dailyLossPct.toFixed(2)}% >= max ${ctx.config.risk.maxDailyLossPct}%`));
+  // Rule: Daily loss limit (only if configured > 0)
+  if (ctx.config.risk.maxDailyLossPct > 0) {
+    checks.push(check('daily_loss_limit', ctx.dailyLossPct < ctx.config.risk.maxDailyLossPct,
+      `Daily loss ${ctx.dailyLossPct.toFixed(2)}% >= max ${ctx.config.risk.maxDailyLossPct}%`));
+  }
 
   // Rule: Cooldown
   const now = Date.now();
