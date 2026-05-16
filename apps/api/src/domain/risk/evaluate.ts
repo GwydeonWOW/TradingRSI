@@ -72,7 +72,7 @@ function check(rule: string, passed: boolean, reason: string): RiskCheck {
 
 function isEnvironmentAllowed(mode: string, environment: string): boolean {
   if (mode === 'simulation') return true;
-  if (mode === 'binance_demo') return environment === 'demo';
-  if (mode === 'binance_live') return environment === 'production';
+  if (mode === 'binance_demo' || mode === 'binance_demo_dry_run' || mode === 'binance_demo_live') return environment === 'demo';
+  if (mode === 'binance_live' || mode === 'binance_live_dry_run') return environment === 'production';
   return false;
 }

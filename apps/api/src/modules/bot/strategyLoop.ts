@@ -82,13 +82,18 @@ export async function runEvaluationCycle(): Promise<void> {
 
     // Evaluate each symbol
     for (const symbol of config.symbols) {
-      // Collect data for all timeframes first
+      // Collect data for all timeframes (config + any multi-TF condition timeframes)
       const timeframeDataMap = new Map<string, number[]>();
       let primaryMarketData: MarketData | null = null;
       const primaryTimeframe = config.timeframes[0] ?? '1h';
       let fetchFailed = false;
 
-      for (const timeframe of config.timeframes) {
+      const extraTfs = (config.entry.multiTimeframeConditions ?? [])
+        .map((c) => c.timeframe)
+        .filter((tf) => !config.timeframes.includes(tf));
+      const allTimeframes = [...config.timeframes, ...extraTfs];
+
+      for (const timeframe of allTimeframes) {
         let marketData: MarketData;
 
         if (strategy.mode === 'simulation') {
@@ -133,6 +138,17 @@ export async function runEvaluationCycle(): Promise<void> {
 
         // Evaluate signal on primary timeframe with all timeframe data
         let signal = evaluateSignal(config, primaryMarketData, timeframeDataMap);
+
+        // Don't emit SELL if no open position for this symbol
+        if (signal.signalType === 'SELL_SIGNAL') {
+          const hasPosition = await prisma.position.findFirst({
+            where: { strategyId: strategy.id, symbol, status: 'open' },
+            select: { id: true },
+          });
+          if (!hasPosition) {
+            signal = { ...signal, signalType: 'HOLD', reasons: [...signal.reasons, 'No open position to sell'] };
+          }
+        }
 
         // BTC stability gate: block BUY signals when BTC is unstable
         if (signal.signalType === 'BUY_SIGNAL' && config.btcStability?.enabled) {
@@ -213,6 +229,20 @@ export async function runEvaluationCycle(): Promise<void> {
           });
           const lastTradeTimestamp = lastOrder?.createdAt?.getTime() ?? null;
 
+          // Calculate daily loss from positions closed in last 24h
+          const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const closedToday = await prisma.position.findMany({
+            where: {
+              strategyId: strategy.id,
+              status: 'closed',
+              closedAt: { gte: dayAgo },
+            },
+            select: { realizedPnl: true, investedQuote: true },
+          });
+          const dailyLoss = closedToday.reduce((sum, p) => sum + Number(p.realizedPnl ?? 0), 0);
+          const dailyInvested = closedToday.reduce((sum, p) => sum + Number(p.investedQuote ?? 0), 0);
+          const dailyLossPct = dailyInvested > 0 ? (Math.abs(dailyLoss) / dailyInvested) * 100 : 0;
+
           const riskCtx: RiskContext = {
             config,
             symbol,
@@ -222,8 +252,8 @@ export async function runEvaluationCycle(): Promise<void> {
             openPositionsCount: openPositions.length,
             openPositionsBySymbol: openPositions.filter((p) => p.symbol === symbol).length,
             totalExposure: openPositions.reduce((sum, p) => sum + Number(p.investedQuote ?? 0), 0),
-            dailyLoss: 0,
-            dailyLossPct: 0,
+            dailyLoss,
+            dailyLossPct,
             lastTradeTimestamp,
             allowLiveTrading: process.env.ALLOW_LIVE_TRADING === 'true',
           };
