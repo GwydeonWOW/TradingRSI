@@ -6,7 +6,6 @@ import {
   ClipboardList,
   Radio,
   Settings,
-  Shield,
   ShieldCheck,
   Users,
   ScrollText,
@@ -14,6 +13,7 @@ import {
   FlaskConical,
   Cog,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext.tsx';
 
 interface SidebarProps {
   open: boolean;
@@ -24,11 +24,13 @@ interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
+  adminOnly?: boolean;
 }
 
 interface NavGroup {
   title: string;
   items: NavItem[];
+  adminOnly?: boolean;
 }
 
 const groups: NavGroup[] = [
@@ -36,9 +38,9 @@ const groups: NavGroup[] = [
     title: 'Monitorizacion',
     items: [
       { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={18} /> },
-      { label: 'Bot en vivo', path: '/bot', icon: <Bot size={18} /> },
+      { label: 'Bot en vivo', path: '/bot', icon: <Bot size={18} />, adminOnly: true },
       { label: 'Posiciones', path: '/positions', icon: <TrendingUp size={18} /> },
-      { label: 'Ordenes', path: '/orders', icon: <ClipboardList size={18} /> },
+      { label: 'Ordenes', path: '/orders', icon: <ClipboardList size={18} />, adminOnly: true },
       { label: 'Senales', path: '/signals', icon: <Radio size={18} /> },
     ],
   },
@@ -58,6 +60,7 @@ const groups: NavGroup[] = [
   },
   {
     title: 'Configuracion',
+    adminOnly: true,
     items: [
       { label: 'Settings', path: '/settings', icon: <Settings size={18} /> },
       { label: 'Seguridad 2FA', path: '/settings/2fa', icon: <ShieldCheck size={18} /> },
@@ -66,6 +69,7 @@ const groups: NavGroup[] = [
   },
   {
     title: 'Auditoria',
+    adminOnly: true,
     items: [
       { label: 'Eventos', path: '/audit', icon: <ScrollText size={18} /> },
     ],
@@ -73,6 +77,16 @@ const groups: NavGroup[] = [
 ];
 
 export function Sidebar({ open, onClose }: SidebarProps) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
+  const filteredGroups = groups
+    .filter((g) => !g.adminOnly || isAdmin)
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((item) => !item.adminOnly || isAdmin),
+    }));
+
   return (
     <>
       {open && (
@@ -108,7 +122,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {groups.map((group) => (
+          {filteredGroups.map((group) => (
             <div key={group.title} className="mb-4">
               <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wider text-text-muted">
                 {group.title}

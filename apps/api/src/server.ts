@@ -26,6 +26,24 @@ const PUBLIC_PATHS = [
   '/api/auth/needs-setup',
 ];
 
+// Paths that require admin role
+const ADMIN_ONLY_PATHS = [
+  '/api/settings/',
+  '/api/binance/account',
+  '/api/binance/test-order',
+  '/api/binance/reconcile',
+  '/api/binance/open-orders',
+  '/api/binance/listen-key',
+  '/api/binance/streams/start',
+  '/api/binance/streams/stop',
+  '/api/binance/live-readiness',
+  '/api/binance/force-reset',
+  '/api/bot/',
+  '/api/orders/',
+  '/api/auth/users',
+  '/api/auth/force-reset',
+];
+
 // Paths that require JWT but skip MFA check (used during MFA setup/verification)
 const MFA_EXEMPT_PATHS = [
   '/api/auth/2fa/challenge',
@@ -96,6 +114,11 @@ async function start() {
     }
 
     (request as any).auth = auth;
+
+    // Enforce admin-only routes
+    if (ADMIN_ONLY_PATHS.some((p) => request.url.startsWith(p)) && auth.role !== 'admin') {
+      return reply.code(403).send({ success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+    }
   });
 
   // Routes
