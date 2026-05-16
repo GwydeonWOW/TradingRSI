@@ -158,6 +158,8 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes }: { trades: Back
 
     const t = trades[idx]!;
     const padMs = 6 * 60 * 60 * 1000;
+    const displayStart = Math.floor((t.entryTime - padMs) / 1000);
+    const displayEnd = Math.floor((t.exitTime + padMs) / 1000);
     try {
       // Fetch main interval with warm-up for RSI
       const warmupMs = intervalToMs(interval) * 50;
@@ -168,7 +170,7 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes }: { trades: Back
         endTime: t.exitTime + padMs,
         limit: 1000,
       });
-      const mainCandles = mainRes.data.map((k) => ({
+      const allMainCandles = mainRes.data.map((k) => ({
         time: Math.floor(k.openTime / 1000),
         open: parseFloat(k.open),
         high: parseFloat(k.high),
@@ -176,7 +178,9 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes }: { trades: Back
         close: parseFloat(k.close),
         volume: parseFloat(k.volume),
       }));
-      setChartData(mainCandles);
+      // Only display candles within the trade range (warm-up is for RSI calc only)
+      const displayCandles = allMainCandles.filter((c) => c.time >= displayStart && c.time <= displayEnd);
+      setChartData(displayCandles);
 
       // Calculate RSI for each timeframe
       const allSeries: RsiSeriesConfig[] = [];
@@ -185,8 +189,8 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes }: { trades: Back
         let times: number[];
 
         if (tf.timeframe === interval) {
-          closes = mainCandles.map((c) => c.close);
-          times = mainCandles.map((c) => c.time);
+          closes = allMainCandles.map((c) => c.close);
+          times = allMainCandles.map((c) => c.time);
         } else {
           const tfWarmupMs = intervalToMs(tf.timeframe) * 50;
           const tfRes = await tradingApi.getKlines({
@@ -208,8 +212,9 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes }: { trades: Back
         const rsiPoints: Array<{ time: number; value: number }> = [];
         for (let i = 0; i < rsiValues.length; i++) {
           const rsi = rsiValues[i];
-          if (rsi !== undefined && !Number.isNaN(rsi)) {
-            rsiPoints.push({ time: times[i]!, value: rsi });
+          const time = times[i]!;
+          if (rsi !== undefined && !Number.isNaN(rsi) && time >= displayStart && time <= displayEnd) {
+            rsiPoints.push({ time, value: rsi });
           }
         }
         allSeries.push({ label: tf.label, color: tf.color, data: rsiPoints });

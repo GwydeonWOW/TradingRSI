@@ -253,7 +253,12 @@ export class BinanceStreamManager {
 
       this.openUserStreamWebSocket();
       this.startListenKeyKeepalive();
-    } catch (err) {
+    } catch (err: any) {
+      const status = err?.status ?? 0;
+      if (status === 410 || status === 401 || status === 403) {
+        logger.warn({ status }, 'User data stream not available for this environment — kline stream active');
+        return;
+      }
       logger.error({ err }, 'Failed to connect user stream');
       if (this.running) {
         this.scheduleReconnect(() => this.connectUserStream());
@@ -270,7 +275,9 @@ export class BinanceStreamManager {
     });
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Failed to create listen key: ${response.status} ${body}`);
+      const err: any = new Error(`Failed to create listen key: ${response.status} ${body}`);
+      err.status = response.status;
+      throw err;
     }
     const data = await response.json() as { listenKey: string };
     this.listenKey = data.listenKey;
