@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../infrastructure/db/prisma.js';
 import { logger } from '../../infrastructure/logger/index.js';
 import { createAuditEvent } from '../audit/helpers.js';
-import { runBacktest, type BacktestCandle, type BacktestParams } from '../../domain/backtest/engine.js';
+import { runBacktest, runMultiSymbolBacktest, type BacktestCandle, type BacktestParams } from '../../domain/backtest/engine.js';
 import { BINANCE_ENVIRONMENTS } from '@cryptorsi/shared';
 import type { StrategyConfig } from '@cryptorsi/shared';
 
@@ -11,6 +11,15 @@ type BinanceEnv = 'demo' | 'testnet' | 'production';
 function getBaseUrl(): string {
   const env = (process.env.BINANCE_ENV ?? 'demo') as BinanceEnv;
   return BINANCE_ENVIRONMENTS[env].restBaseUrl;
+}
+
+function intervalToMs(interval: string): number {
+  const m = interval.match(/^(\d+)(m|h|d)$/);
+  if (!m) return 3600000;
+  const n = parseInt(m[1]!);
+  if (m[2] === 'm') return n * 60000;
+  if (m[2] === 'h') return n * 3600000;
+  return n * 86400000;
 }
 
 /**
@@ -59,11 +68,9 @@ async function fetchHistoricalKlines(
       });
     }
 
-    // Move start time past the last candle
     const lastOpenTime = data[data.length - 1]![0] as number;
     currentStart = lastOpenTime + 1;
 
-    // If we got fewer than 1000, we've reached the end
     if (data.length < 1000) break;
   }
 
@@ -71,7 +78,7 @@ async function fetchHistoricalKlines(
 }
 
 export async function backtestRoutes(app: FastifyInstance) {
-  // POST /api/backtests - Run a new backtest across all strategy symbols
+  // POST /api/backtests - Run a new backtest with shared capital pool
   app.post('/api/backtests', async (request, reply) => {
     try {
       const body = request.body as {
@@ -91,7 +98,6 @@ export async function backtestRoutes(app: FastifyInstance) {
         });
       }
 
-      // Fetch strategy and version
       const strategy = await prisma.strategy.findUnique({
         where: { id: body.strategyId },
         include: {
@@ -109,7 +115,6 @@ export async function backtestRoutes(app: FastifyInstance) {
         });
       }
 
-      // Determine version: use provided versionId or latest
       let versionId: string;
       let config: StrategyConfig;
 
@@ -150,75 +155,53 @@ export async function backtestRoutes(app: FastifyInstance) {
       const initialCapital = body.initialCapital ?? 1000;
       const commissionRate = body.commissionRate ?? 0.001;
 
-      // Run backtest for each symbol and aggregate results
-      const perSymbolResults: Record<string, { metrics: import('../../domain/backtest/engine.js').BacktestMetrics; trades: import('../../domain/backtest/engine.js').BacktestTrade[]; equityCurve: Array<{ time: number; equity: number }>; candleCount: number }> = {};
-      const allTrades: import('../../domain/backtest/engine.js').BacktestTrade[] = [];
+      // Calculate warm-up period based on strategy indicators
+      const warmupCandles = Math.max(
+        config.entry.useSmaFilter ? (config.entry.smaPeriod ?? 200) : 0,
+        50, // minimum warm-up for RSI + divergence detection
+      );
+      const warmupMs = warmupCandles * intervalToMs(body.interval);
 
+      // Fetch all symbols with warm-up data
+      const symbolsData: Array<{ symbol: string; candles: BacktestCandle[] }> = [];
       for (const symbol of symbols) {
         try {
-          const candles = await fetchHistoricalKlines(symbol, body.interval, startDate.getTime(), endDate.getTime());
-          if (candles.length < 20) {
-            perSymbolResults[symbol] = { metrics: emptyMetrics(), trades: [], equityCurve: [], candleCount: candles.length };
-            continue;
+          const candles = await fetchHistoricalKlines(
+            symbol, body.interval,
+            startDate.getTime() - warmupMs,
+            endDate.getTime(),
+          );
+          if (candles.length >= 20) {
+            symbolsData.push({ symbol, candles });
           }
-
-          const params: BacktestParams = {
-            strategyId: strategy.id,
-            strategyVersionId: versionId,
-            symbol,
-            interval: body.interval,
-            startDate,
-            endDate,
-            initialCapital,
-            commissionRate,
-          };
-
-          const result = runBacktest(config, candles, params);
-          perSymbolResults[symbol] = { metrics: result.metrics, trades: result.trades, equityCurve: result.equityCurve, candleCount: candles.length };
-          allTrades.push(...result.trades);
         } catch {
-          perSymbolResults[symbol] = { metrics: emptyMetrics(), trades: [], equityCurve: [], candleCount: 0 };
+          // Skip symbols with fetch errors
         }
       }
 
-      // Aggregate metrics across all symbols
-      const totalTrades = allTrades.length;
-      const winningTrades = allTrades.filter((t) => t.pnl > 0).length;
-      const losingTrades = allTrades.filter((t) => t.pnl <= 0).length;
-      const totalPnl = allTrades.reduce((sum, t) => sum + t.pnl, 0);
-      const totalPnlPct = initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0;
-      const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
-      const grossProfit = allTrades.filter((t) => t.pnl > 0).reduce((sum, t) => sum + t.pnl, 0);
-      const grossLoss = Math.abs(allTrades.filter((t) => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0));
-      const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
-      const pnlValues = allTrades.map((t) => t.pnlPct);
-      const bestTrade = pnlValues.length > 0 ? Math.max(...pnlValues) : 0;
-      const worstTrade = pnlValues.length > 0 ? Math.min(...pnlValues) : 0;
-      const sharpeRatio = totalTrades >= 2 ? calcSharpe(pnlValues) : 0;
-      const maxDrawdown = Math.max(...Object.values(perSymbolResults).map((r) => r.metrics.maxDrawdown), 0);
-      const finalCapital = initialCapital + totalPnl;
+      if (symbolsData.length === 0) {
+        return reply.code(400).send({
+          success: false,
+          error: { code: 'INSUFFICIENT_DATA', message: 'No candle data available for any symbol' },
+        });
+      }
 
-      const aggregatedMetrics: import('../../domain/backtest/engine.js').BacktestMetrics = {
-        totalTrades,
-        winningTrades,
-        losingTrades,
-        winRate,
-        totalPnl,
-        totalPnlPct,
-        maxDrawdown,
-        maxDrawdownDuration: 0,
-        profitFactor,
-        avgTradeDuration: 0,
-        bestTrade,
-        worstTrade,
-        avgWin: winningTrades > 0 ? allTrades.filter((t) => t.pnl > 0).reduce((s, t) => s + t.pnlPct, 0) / winningTrades : 0,
-        avgLoss: losingTrades > 0 ? allTrades.filter((t) => t.pnl <= 0).reduce((s, t) => s + t.pnlPct, 0) / losingTrades : 0,
-        sharpeRatio,
-        finalCapital,
-      };
+      // Run multi-symbol backtest with shared capital
+      const result = runMultiSymbolBacktest(config, symbolsData, {
+        startTimestampMs: startDate.getTime(),
+        initialCapital,
+        commissionRate,
+      });
 
-      // Build merged equity curve across all symbols
-      const mergedCurve = mergeEquityCurves(Object.values(perSymbolResults).map((r) => r.equityCurve), initialCapital);
+      // Build per-symbol breakdown for display
+      const perSymbol: Record<string, { trades: typeof result.trades; totalPnl: number }> = {};
+      for (const trade of result.trades) {
+        if (!perSymbol[trade.symbol]) {
+          perSymbol[trade.symbol] = { trades: [], totalPnl: 0 };
+        }
+        perSymbol[trade.symbol]!.trades.push(trade);
+        perSymbol[trade.symbol]!.totalPnl += trade.pnl;
+      }
 
       // Save as audit event
       await createAuditEvent({
@@ -234,21 +217,21 @@ export async function backtestRoutes(app: FastifyInstance) {
           endDate: body.endDate,
           initialCapital,
           commissionRate,
-          totalTrades,
-          totalPnl,
-          winRate,
-          maxDrawdown,
-          sharpeRatio,
+          totalTrades: result.metrics.totalTrades,
+          totalPnl: result.metrics.totalPnl,
+          winRate: result.metrics.winRate,
+          maxDrawdown: result.metrics.maxDrawdown,
+          sharpeRatio: result.metrics.sharpeRatio,
         },
       }).catch(() => {});
 
       return reply.code(200).send({
         success: true,
         data: {
-          metrics: aggregatedMetrics,
-          trades: allTrades.sort((a, b) => a.entryTime - b.entryTime),
-          equityCurve: mergedCurve,
-          perSymbol: perSymbolResults,
+          metrics: result.metrics,
+          trades: result.trades,
+          equityCurve: result.equityCurve,
+          perSymbol,
           symbols,
         },
       });
@@ -278,7 +261,6 @@ export async function backtestRoutes(app: FastifyInstance) {
         take: limit,
       });
 
-      // Filter by symbol in payload (Prisma Json filtering is limited)
       let results: Array<Record<string, unknown>> = events.map((e: { id: string; createdAt: Date; payload: unknown }) => ({
         id: e.id,
         createdAt: e.createdAt,
@@ -286,7 +268,10 @@ export async function backtestRoutes(app: FastifyInstance) {
       }));
 
       if (symbol) {
-        results = results.filter((r: Record<string, unknown>) => r.symbol === symbol);
+        results = results.filter((r: Record<string, unknown>) => {
+          const syms = r.symbols as string[] | undefined;
+          return syms?.includes(symbol);
+        });
       }
 
       return reply.code(200).send({
@@ -322,7 +307,6 @@ export async function backtestRoutes(app: FastifyInstance) {
         });
       }
 
-      // Fetch both versions
       const [versionA, versionB] = await Promise.all([
         prisma.strategyVersion.findUnique({ where: { id: query.versionA } }),
         prisma.strategyVersion.findUnique({ where: { id: query.versionB } }),
@@ -352,11 +336,18 @@ export async function backtestRoutes(app: FastifyInstance) {
         });
       }
 
-      // Fetch candles once (same market data for both)
+      // Calculate warm-up for both configs
+      const configA = versionA.config as unknown as StrategyConfig;
+      const configB = versionB.config as unknown as StrategyConfig;
+      const warmupA = Math.max(configA.entry.useSmaFilter ? (configA.entry.smaPeriod ?? 200) : 0, 50);
+      const warmupB = Math.max(configB.entry.useSmaFilter ? (configB.entry.smaPeriod ?? 200) : 0, 50);
+      const warmupMs = Math.max(warmupA, warmupB) * intervalToMs(query.interval);
+
+      // Fetch candles with warm-up
       const candles = await fetchHistoricalKlines(
         query.symbol,
         query.interval,
-        startDate.getTime(),
+        startDate.getTime() - warmupMs,
         endDate.getTime(),
       );
 
@@ -378,12 +369,11 @@ export async function backtestRoutes(app: FastifyInstance) {
         commissionRate: 0.001,
       };
 
-      // Run both backtests
       const paramsA = { ...baseParams, strategyVersionId: versionA.id };
       const paramsB = { ...baseParams, strategyVersionId: versionB.id };
 
-      const resultA = runBacktest(versionA.config as unknown as StrategyConfig, candles, paramsA);
-      const resultB = runBacktest(versionB.config as unknown as StrategyConfig, candles, paramsB);
+      const resultA = runBacktest(configA, candles, paramsA);
+      const resultB = runBacktest(configB, candles, paramsB);
 
       await createAuditEvent({
         actorType: 'user',
@@ -416,72 +406,4 @@ export async function backtestRoutes(app: FastifyInstance) {
       });
     }
   });
-}
-
-function emptyMetrics(): import('../../domain/backtest/engine.js').BacktestMetrics {
-  return {
-    totalTrades: 0, winningTrades: 0, losingTrades: 0, winRate: 0,
-    totalPnl: 0, totalPnlPct: 0, maxDrawdown: 0, maxDrawdownDuration: 0,
-    profitFactor: 0, avgTradeDuration: 0, bestTrade: 0, worstTrade: 0,
-    avgWin: 0, avgLoss: 0, sharpeRatio: 0, finalCapital: 0,
-  };
-}
-
-function calcSharpe(returns: number[]): number {
-  if (returns.length < 2) return 0;
-  const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
-  const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1);
-  const stdDev = Math.sqrt(variance);
-  if (stdDev === 0) return 0;
-  return (mean / stdDev) * Math.sqrt(252);
-}
-
-function mergeEquityCurves(
-  curves: Array<Array<{ time: number; equity: number }>>,
-  initialCapital: number,
-): Array<{ time: number; equity: number }> {
-  if (curves.length === 0) return [];
-  if (curves.length === 1) return curves[0]!;
-
-  // Each symbol's curve tracks capital + unrealizedPnl independently.
-  // Since each run starts with the full initialCapital, the delta from
-  // initial represents each symbol's contribution. We sum those deltas
-  // to get the combined equity, but cap at one initialCapital base.
-  const allTimes = new Set<number>();
-  for (const curve of curves) {
-    for (const point of curve) {
-      allTimes.add(point.time);
-    }
-  }
-
-  const sortedTimes = Array.from(allTimes).sort((a, b) => a - b);
-
-  // Build per-curve time->equity maps with forward-fill for missing times
-  const curveMaps = curves.map((curve) => {
-    const map = new Map<number, number>();
-    for (const point of curve) {
-      map.set(point.time, point.equity);
-    }
-    return map;
-  });
-
-  const result: Array<{ time: number; equity: number }> = [];
-  const lastKnown = new Array<number | null>(curves.length).fill(null);
-
-  for (const t of sortedTimes) {
-    let totalDelta = 0;
-    for (let c = 0; c < curves.length; c++) {
-      const val = curveMaps[c]!.get(t);
-      if (val !== undefined) {
-        lastKnown[c] = val;
-      }
-      // Delta from initial = this symbol's PnL contribution
-      if (lastKnown[c] !== null) {
-        totalDelta += lastKnown[c]! - initialCapital;
-      }
-    }
-    result.push({ time: t, equity: initialCapital + totalDelta });
-  }
-
-  return result;
 }

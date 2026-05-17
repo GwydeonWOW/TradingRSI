@@ -9,7 +9,7 @@ export interface BacktestParams {
   startDate: Date;
   endDate: Date;
   initialCapital: number;
-  commissionRate: number; // e.g. 0.001 for 0.1%
+  commissionRate: number;
 }
 
 export interface BacktestTrade {
@@ -35,12 +35,12 @@ export interface BacktestMetrics {
   winRate: number;
   totalPnl: number;
   totalPnlPct: number;
-  maxDrawdown: number; // percentage
-  maxDrawdownDuration: number; // in candles
+  maxDrawdown: number;
+  maxDrawdownDuration: number;
   profitFactor: number;
-  avgTradeDuration: number; // in candles
-  bestTrade: number; // best PnL%
-  worstTrade: number; // worst PnL%
+  avgTradeDuration: number;
+  bestTrade: number;
+  worstTrade: number;
   avgWin: number;
   avgLoss: number;
   sharpeRatio: number;
@@ -71,11 +71,221 @@ interface OpenPosition {
   investedQuote: number;
   highestPrice: number;
   entryRsi: number | null;
+  symbol: string;
 }
 
-/**
- * Run a backtest against historical candle data using the given strategy config.
- */
+interface SymbolRun {
+  symbol: string;
+  candles: BacktestCandle[];
+  closesSoFar: number[];
+  openPosition: OpenPosition | null;
+}
+
+// ---------------------------------------------------------------------------
+// Multi-symbol backtest with shared capital pool
+// ---------------------------------------------------------------------------
+
+export interface MultiSymbolParams {
+  startTimestampMs: number;
+  initialCapital: number;
+  commissionRate: number;
+}
+
+export function runMultiSymbolBacktest(
+  config: StrategyConfig,
+  symbolsData: Array<{ symbol: string; candles: BacktestCandle[] }>,
+  params: MultiSymbolParams,
+): BacktestResult {
+  const { entry, exit, risk } = config;
+  const rsiPeriod = 14;
+  const minDataLength = rsiPeriod + 1;
+
+  // Build per-symbol state
+  const runs: SymbolRun[] = symbolsData.map((sd) => ({
+    symbol: sd.symbol,
+    candles: sd.candles,
+    closesSoFar: [],
+    openPosition: null,
+  }));
+
+  // Build merged chronological event stream
+  const events: Array<{ time: number; runIdx: number; candleIdx: number }> = [];
+  for (let r = 0; r < runs.length; r++) {
+    const candles = runs[r]!.candles;
+    for (let c = 0; c < candles.length; c++) {
+      events.push({ time: candles[c]!.openTime, runIdx: r, candleIdx: c });
+    }
+  }
+  events.sort((a, b) => a.time - b.time);
+
+  let cash = params.initialCapital;
+  const trades: BacktestTrade[] = [];
+  const equityCurve: Array<{ time: number; equity: number }> = [];
+
+  for (const event of events) {
+    const run = runs[event.runIdx]!;
+    const candle = run.candles[event.candleIdx]!;
+    run.closesSoFar.push(candle.close);
+
+    // Warm-up phase: only build indicator data
+    if (candle.openTime < params.startTimestampMs) continue;
+
+    // Not enough data for indicators
+    if (run.closesSoFar.length < minDataLength) {
+      equityCurve.push({ time: candle.openTime, equity: computeEquity(cash, runs) });
+      continue;
+    }
+
+    // Calculate indicators
+    const rsiValues = calculateRsi(run.closesSoFar, rsiPeriod);
+    const rsiValue = rsiValues[rsiValues.length - 1]!;
+
+    // --- Check exit for this symbol ---
+    if (run.openPosition) {
+      const exitResult = checkExit(
+        run.openPosition,
+        candle,
+        rsiValue,
+        exit,
+        params.commissionRate,
+        run.closesSoFar,
+        entry.rsiPeriod ?? rsiPeriod,
+      );
+
+      if (exitResult) {
+        exitResult.trade.exitRsi = Number.isNaN(rsiValue) ? null : Math.round(rsiValue * 100) / 100;
+        exitResult.trade.symbol = run.symbol;
+        trades.push(exitResult.trade);
+        cash += exitResult.proceeds;
+        run.openPosition = null;
+      }
+    }
+
+    // --- Check entry for this symbol ---
+    if (!run.openPosition && !Number.isNaN(rsiValue)) {
+      const entryMode = entry.entryMode ?? (entry.useRsiDivergence ? 'divergence' : 'rsi_threshold');
+      let buySignal: boolean;
+      if (entryMode === 'divergence') {
+        buySignal = detectBullishDivergence(run.closesSoFar, entry.rsiPeriod ?? rsiPeriod);
+      } else {
+        buySignal = rsiValue <= entry.rsiBelow;
+      }
+
+      // SMA filter
+      let smaBlocked = false;
+      if (buySignal && entry.useSmaFilter) {
+        const smaValues = calculateSma(run.closesSoFar, entry.smaPeriod);
+        const lastSma = smaValues[smaValues.length - 1];
+        if (lastSma === undefined || Number.isNaN(lastSma)) {
+          smaBlocked = true; // No SMA data yet → block entry
+        } else if (candle.close <= lastSma) {
+          smaBlocked = true;
+        }
+      }
+
+      // Position limits
+      const totalOpenPositions = runs.filter((r) => r.openPosition !== null).length;
+      const totalExposure = runs.reduce((sum, r) => sum + (r.openPosition?.investedQuote ?? 0), 0);
+
+      const withinLimits = totalOpenPositions < risk.maxOpenPositions
+        && totalExposure + risk.quoteAmountPerTrade <= risk.maxTotalExposureQuote;
+
+      if (buySignal && !smaBlocked && withinLimits) {
+        const investedQuote = Math.min(risk.quoteAmountPerTrade, cash);
+        if (investedQuote > 0) {
+          const commission = investedQuote * params.commissionRate;
+          const netInvested = investedQuote - commission;
+          const quantity = netInvested / candle.close;
+          const entryRsi = Number.isNaN(rsiValue) ? null : Math.round(rsiValue * 100) / 100;
+
+          run.openPosition = {
+            entryCandleIndex: event.candleIdx,
+            entryTime: candle.openTime,
+            entryPrice: candle.close,
+            quantity,
+            investedQuote,
+            highestPrice: candle.high,
+            entryRsi,
+            symbol: run.symbol,
+          };
+          cash -= investedQuote;
+        }
+      }
+    }
+
+    equityCurve.push({ time: candle.openTime, equity: computeEquity(cash, runs) });
+  }
+
+  // Close all remaining positions at last candle
+  for (const run of runs) {
+    if (run.openPosition && run.candles.length > 0) {
+      const lastCandle = run.candles[run.candles.length - 1]!;
+      const exitPrice = lastCandle.close;
+      const grossValue = run.openPosition.quantity * exitPrice;
+      const commission = grossValue * params.commissionRate;
+      const netProceeds = grossValue - commission;
+      const pnl = netProceeds - run.openPosition.investedQuote;
+      const pnlPct = (pnl / run.openPosition.investedQuote) * 100;
+
+      trades.push({
+        symbol: run.symbol,
+        entryTime: run.openPosition.entryTime,
+        exitTime: lastCandle.openTime,
+        side: 'BUY',
+        entryPrice: run.openPosition.entryPrice,
+        exitPrice,
+        quantity: run.openPosition.quantity,
+        investedQuote: run.openPosition.investedQuote,
+        pnl,
+        pnlPct,
+        entryRsi: run.openPosition.entryRsi,
+        exitRsi: null,
+        exitReason: 'end_of_data',
+      });
+      cash += netProceeds;
+      run.openPosition = null;
+    }
+  }
+
+  // Update last equity curve point
+  if (equityCurve.length > 0) {
+    equityCurve[equityCurve.length - 1]!.equity = cash;
+  }
+
+  const metrics = calculateMetrics(trades, params.initialCapital, equityCurve);
+
+  return {
+    params: {
+      strategyId: '',
+      strategyVersionId: '',
+      symbol: symbolsData.map((s) => s.symbol).join(','),
+      interval: '',
+      startDate: new Date(params.startTimestampMs),
+      endDate: new Date(0),
+      initialCapital: params.initialCapital,
+      commissionRate: params.commissionRate,
+    },
+    metrics,
+    trades: trades.sort((a, b) => a.entryTime - b.entryTime),
+    equityCurve,
+  };
+}
+
+function computeEquity(cash: number, runs: SymbolRun[]): number {
+  let equity = cash;
+  for (const run of runs) {
+    if (run.openPosition) {
+      const lastClose = run.closesSoFar[run.closesSoFar.length - 1] ?? run.openPosition.entryPrice;
+      equity += run.openPosition.quantity * lastClose;
+    }
+  }
+  return equity;
+}
+
+// ---------------------------------------------------------------------------
+// Single-symbol backtest (kept for compare route)
+// ---------------------------------------------------------------------------
+
 export function runBacktest(
   config: StrategyConfig,
   candles: BacktestCandle[],
@@ -98,27 +308,16 @@ export function runBacktest(
     const candle = candles[i]!;
     closesSoFar.push(candle.close);
 
-    // Not enough data for indicators
     if (closesSoFar.length < minDataLength) {
       const equity = capital + unrealizedPnl(openPosition, candle.close);
       equityCurve.push({ time: candle.openTime, equity });
       continue;
     }
 
-    // Calculate indicators
     const rsiValues = calculateRsi(closesSoFar, rsiPeriod);
     const rsiValue = rsiValues[rsiValues.length - 1]!;
 
-    let smaValue: number | null = null;
-    if (entry.useSmaFilter) {
-      const smaValues = calculateSma(closesSoFar, entry.smaPeriod);
-      const lastSma = smaValues[smaValues.length - 1];
-      if (lastSma !== undefined && !Number.isNaN(lastSma)) {
-        smaValue = lastSma;
-      }
-    }
-
-    // --- Check exit conditions for open position ---
+    // --- Check exit ---
     if (openPosition) {
       const exitResult = checkExit(
         openPosition,
@@ -139,7 +338,7 @@ export function runBacktest(
       }
     }
 
-    // --- Check entry conditions if no position ---
+    // --- Check entry ---
     if (!openPosition && !Number.isNaN(rsiValue)) {
       const entryMode = entry.entryMode ?? (entry.useRsiDivergence ? 'divergence' : 'rsi_threshold');
       let buySignal: boolean;
@@ -149,9 +348,14 @@ export function runBacktest(
         buySignal = rsiValue <= entry.rsiBelow;
       }
 
+      // SMA filter — block if no data yet
       let smaBlocked = false;
-      if (buySignal && entry.useSmaFilter && smaValue !== null) {
-        if (candle.close <= smaValue) {
+      if (buySignal && entry.useSmaFilter) {
+        const smaValues = calculateSma(closesSoFar, entry.smaPeriod);
+        const lastSma = smaValues[smaValues.length - 1];
+        if (lastSma === undefined || Number.isNaN(lastSma)) {
+          smaBlocked = true;
+        } else if (candle.close <= lastSma) {
           smaBlocked = true;
         }
       }
@@ -172,6 +376,7 @@ export function runBacktest(
             investedQuote,
             highestPrice: candle.high,
             entryRsi,
+            symbol: params.symbol,
           };
         }
       }
@@ -181,7 +386,7 @@ export function runBacktest(
     equityCurve.push({ time: candle.openTime, equity });
   }
 
-  // Close any remaining position at the last close price
+  // Close remaining position
   if (openPosition && candles.length > 0) {
     const lastCandle = candles[candles.length - 1]!;
     const exitPrice = lastCandle.close;
@@ -190,7 +395,6 @@ export function runBacktest(
     const netProceeds = grossValue - commission;
     const pnl = netProceeds - openPosition.investedQuote;
     const pnlPct = (pnl / openPosition.investedQuote) * 100;
-    const duration = candles.length - 1 - openPosition.entryCandleIndex;
 
     trades.push({
       symbol: params.symbol,
@@ -210,30 +414,23 @@ export function runBacktest(
 
     capital += netProceeds;
     openPosition = null;
-
-    // Update last equity curve point
     equityCurve[equityCurve.length - 1]!.equity = capital;
   }
 
   const metrics = calculateMetrics(trades, params.initialCapital, equityCurve);
 
-  return {
-    params,
-    metrics,
-    trades,
-    equityCurve,
-  };
+  return { params, metrics, trades, equityCurve };
 }
+
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
 
 interface ExitCheckResult {
   trade: BacktestTrade;
   proceeds: number;
 }
 
-/**
- * Check if an open position should be exited on this candle.
- * Uses high/low to detect stop-loss and take-profit hits intracandle.
- */
 function checkExit(
   position: OpenPosition,
   candle: BacktestCandle,
@@ -243,19 +440,16 @@ function checkExit(
   closesSoFar: number[],
   rsiPeriod: number,
 ): ExitCheckResult | null {
-  // Update trailing stop highest price
   if (exit.trailingStopPct !== null && candle.high > position.highestPrice) {
     position.highestPrice = candle.high;
   }
 
-  // Check stop-loss (price dropped below threshold)
   if (exit.stopLossPct !== null) {
     const stopLossPrice = position.entryPrice * (1 - exit.stopLossPct / 100);
     if (candle.low <= stopLossPrice) {
       return buildTrade(position, candle, stopLossPrice, 'stop_loss', commissionRate);
     }
 
-    // Check trailing stop
     if (exit.trailingStopPct !== null) {
       const trailingStopPrice = position.highestPrice * (1 - exit.trailingStopPct / 100);
       if (candle.low <= trailingStopPrice && trailingStopPrice > stopLossPrice) {
@@ -264,7 +458,6 @@ function checkExit(
     }
   }
 
-  // Check take-profit (price rose above threshold)
   if (exit.takeProfitPct !== null) {
     const takeProfitPrice = position.entryPrice * (1 + exit.takeProfitPct / 100);
     if (candle.high >= takeProfitPrice) {
@@ -272,12 +465,10 @@ function checkExit(
     }
   }
 
-  // Check bearish divergence exit
   if (exit.exitOnBearishDivergence && detectBearishDivergence(closesSoFar, rsiPeriod)) {
     return buildTrade(position, candle, candle.close, 'signal', commissionRate);
   }
 
-  // Check RSI sell signal
   if (rsiValue >= exit.rsiAbove) {
     return buildTrade(position, candle, candle.close, 'signal', commissionRate);
   }
@@ -311,7 +502,7 @@ function buildTrade(
       pnl,
       pnlPct,
       entryRsi: position.entryRsi,
-      exitRsi: null, // will be set by caller
+      exitRsi: null,
       exitReason,
     },
     proceeds,
@@ -351,16 +542,10 @@ function calculateMetrics(
     ? trades.filter(t => t.pnl <= 0).reduce((sum, t) => sum + t.pnlPct, 0) / losingTrades
     : 0;
 
-  // Avg trade duration (based on candle count approximated from entry/exit times)
-  // Since we store indices indirectly, we approximate from the trades' time delta
-  // But we don't have candle duration here. Instead, we compute it as a simple average of trade count.
-  // For now, return 0 since candle duration is not available in the trade data.
   const avgTradeDuration = 0;
 
-  // Sharpe ratio (simplified: using trade PnLs as returns, risk-free rate = 0)
   const sharpeRatio = calculateSharpeRatio(pnlValues);
 
-  // Max drawdown from equity curve
   const { maxDrawdown, maxDrawdownDuration } = calculateMaxDrawdown(equityCurve);
 
   const finalCapital = initialCapital + totalPnl;
@@ -393,7 +578,7 @@ function calculateSharpeRatio(returns: number[]): number {
   const stdDev = Math.sqrt(variance);
 
   if (stdDev === 0) return 0;
-  return (mean / stdDev) * Math.sqrt(252); // Annualized
+  return (mean / stdDev) * Math.sqrt(252);
 }
 
 function calculateMaxDrawdown(
