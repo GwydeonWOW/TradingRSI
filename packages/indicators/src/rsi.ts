@@ -28,7 +28,7 @@ export function calculateRsi(closes: number[], period: number): number[] {
   avgLoss /= period;
 
   const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-  result.push(avgLoss === 0 ? 100 : 100 - 100 / (1 + rs));
+  result.push(100 - 100 / (1 + rs));
 
   // Wilder smoothing for subsequent values
   for (let i = period + 1; i < closes.length; i++) {
@@ -40,7 +40,7 @@ export function calculateRsi(closes: number[], period: number): number[] {
     avgLoss = (avgLoss * (period - 1) + loss) / period;
 
     const currentRs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-    result.push(avgLoss === 0 ? 100 : 100 - 100 / (1 + currentRs));
+    result.push(100 - 100 / (1 + currentRs));
   }
 
   return result;
