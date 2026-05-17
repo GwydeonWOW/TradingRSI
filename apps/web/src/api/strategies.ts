@@ -75,6 +75,15 @@ export interface BacktestTrade {
   exitReason: string;
 }
 
+export interface BacktestCandle {
+  openTime: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
 export interface BacktestResult {
   params: BacktestRequest;
   metrics: BacktestMetrics;
@@ -82,6 +91,7 @@ export interface BacktestResult {
   equityCurve: Array<{ time: number; equity: number }>;
   perSymbol?: Record<string, { metrics: BacktestMetrics; trades: BacktestTrade[]; candleCount: number }>;
   symbols?: string[];
+  candles?: Record<string, BacktestCandle[]>;
 }
 
 export interface StrategyVersion {

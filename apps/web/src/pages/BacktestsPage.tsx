@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { strategiesApi, backtestsApi } from '../api/strategies.ts';
 import { tradingApi } from '../api/trading.ts';
-import type { StrategyListItem, BacktestResult, BacktestMetrics, BacktestTrade } from '../api/strategies.ts';
+import type { StrategyListItem, BacktestResult, BacktestMetrics, BacktestTrade, BacktestCandle } from '../api/strategies.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { EquityCurveChart } from '../components/EquityCurveChart.tsx';
 import { CandlestickChart, type CandleData, type RsiSeriesConfig } from '../components/CandlestickChart.tsx';
@@ -138,7 +138,7 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
   );
 }
 
-function TradesTable({ trades, symbol, interval, rsiTimeframes, initialCapital }: { trades: BacktestTrade[]; symbol: string; interval: string; rsiTimeframes: RsiTimeframeInfo[]; initialCapital: number }) {
+function TradesTable({ trades, symbol, interval, rsiTimeframes, initialCapital, backtestCandles }: { trades: BacktestTrade[]; symbol: string; interval: string; rsiTimeframes: RsiTimeframeInfo[]; initialCapital: number; backtestCandles?: Record<string, BacktestCandle[]> }) {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [chartData, setChartData] = useState<CandleData[]>([]);
   const [rsiSeriesData, setRsiSeriesData] = useState<RsiSeriesConfig[]>([]);
@@ -157,27 +157,44 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes, initialCapital }
     setChartLoading(true);
 
     const t = trades[idx]!;
+    const tradeSymbol = t.symbol || symbol;
     const padMs = 6 * 60 * 60 * 1000;
     const displayStart = Math.floor((t.entryTime - padMs) / 1000);
     const displayEnd = Math.floor((t.exitTime + padMs) / 1000);
     try {
-      // Fetch main interval with warm-up for RSI — 250 candles to match backtest warm-up
-      const warmupMs = intervalToMs(interval) * 250;
-      const mainRes = await tradingApi.getKlines({
-        symbol,
-        interval,
-        startTime: t.entryTime - warmupMs - padMs,
-        endTime: t.exitTime + padMs,
-        limit: 1000,
-      });
-      const allMainCandles = mainRes.data.map((k) => ({
-        time: Math.floor(k.openTime / 1000),
-        open: parseFloat(k.open),
-        high: parseFloat(k.high),
-        low: parseFloat(k.low),
-        close: parseFloat(k.close),
-        volume: parseFloat(k.volume),
-      }));
+      // Use pre-fetched candle data from the backtest engine (same data the engine used for decisions)
+      const symbolCandles = backtestCandles?.[tradeSymbol];
+      let allMainCandles: Array<{ time: number; open: number; high: number; low: number; close: number; volume: number }>;
+
+      if (symbolCandles) {
+        allMainCandles = symbolCandles.map((c) => ({
+          time: Math.floor(c.openTime / 1000),
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+          volume: c.volume,
+        }));
+      } else {
+        // Fallback: fetch from Binance if no pre-fetched data (e.g. compare route)
+        const warmupMs = intervalToMs(interval) * 250;
+        const mainRes = await tradingApi.getKlines({
+          symbol: tradeSymbol,
+          interval,
+          startTime: t.entryTime - warmupMs - padMs,
+          endTime: t.exitTime + padMs,
+          limit: 1000,
+        });
+        allMainCandles = mainRes.data.map((k) => ({
+          time: Math.floor(k.openTime / 1000),
+          open: parseFloat(k.open),
+          high: parseFloat(k.high),
+          low: parseFloat(k.low),
+          close: parseFloat(k.close),
+          volume: parseFloat(k.volume),
+        }));
+      }
+
       // Only display candles within the trade range (warm-up is for RSI calc only)
       const displayCandles = allMainCandles.filter((c) => c.time >= displayStart && c.time <= displayEnd);
       setChartData(displayCandles);
@@ -189,12 +206,14 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes, initialCapital }
         let times: number[];
 
         if (tf.timeframe === interval) {
+          // Use the same candle data as the engine for the main interval
           closes = allMainCandles.map((c) => c.close);
           times = allMainCandles.map((c) => c.time);
         } else {
+          // Multi-timeframe: still needs separate fetch
           const tfWarmupMs = intervalToMs(tf.timeframe) * 250;
           const tfRes = await tradingApi.getKlines({
-            symbol,
+            symbol: tradeSymbol,
             interval: tf.timeframe,
             startTime: t.entryTime - tfWarmupMs - padMs,
             endTime: t.exitTime + padMs,
@@ -643,7 +662,7 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
           {/* Trades */}
           <div>
             <h3 className="mb-2 text-sm font-medium text-text-secondary">Trades ({result.trades.length})</h3>
-            <TradesTable trades={result.trades} symbol={(result.symbols ?? [])[0] ?? strategySymbols[0] ?? ''} interval={interval} rsiTimeframes={rsiTimeframes} initialCapital={parseFloat(initialCapital) || 1000} />
+            <TradesTable trades={result.trades} symbol={(result.symbols ?? [])[0] ?? strategySymbols[0] ?? ''} interval={interval} rsiTimeframes={rsiTimeframes} initialCapital={parseFloat(initialCapital) || 1000} backtestCandles={result.candles} />
           </div>
         </div>
       )}

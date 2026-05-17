@@ -241,6 +241,9 @@ export async function backtestRoutes(app: FastifyInstance) {
           equityCurve: result.equityCurve,
           perSymbol,
           symbols,
+          candles: Object.fromEntries(
+            symbolsData.map((sd) => [sd.symbol, sd.candles]),
+          ),
         },
       });
     } catch (err) {
