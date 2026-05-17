@@ -155,10 +155,11 @@ export async function backtestRoutes(app: FastifyInstance) {
       const initialCapital = body.initialCapital ?? 1000;
       const commissionRate = body.commissionRate ?? 0.001;
 
-      // Calculate warm-up period based on strategy indicators
+      // Calculate warm-up period: enough for both SMA convergence AND RSI accuracy.
+      // Wilder RSI-14 needs ~250 candles for full convergence with volatile data.
       const warmupCandles = Math.max(
         config.entry.useSmaFilter ? (config.entry.smaPeriod ?? 200) : 0,
-        50, // minimum warm-up for RSI + divergence detection
+        250,
       );
       const warmupMs = warmupCandles * intervalToMs(body.interval);
 
@@ -346,8 +347,8 @@ export async function backtestRoutes(app: FastifyInstance) {
       // Calculate warm-up for both configs
       const configA = versionA.config as unknown as StrategyConfig;
       const configB = versionB.config as unknown as StrategyConfig;
-      const warmupA = Math.max(configA.entry.useSmaFilter ? (configA.entry.smaPeriod ?? 200) : 0, 50);
-      const warmupB = Math.max(configB.entry.useSmaFilter ? (configB.entry.smaPeriod ?? 200) : 0, 50);
+      const warmupA = Math.max(configA.entry.useSmaFilter ? (configA.entry.smaPeriod ?? 200) : 0, 250);
+      const warmupB = Math.max(configB.entry.useSmaFilter ? (configB.entry.smaPeriod ?? 200) : 0, 250);
       const warmupMs = Math.max(warmupA, warmupB) * intervalToMs(query.interval);
 
       // Fetch candles with warm-up
