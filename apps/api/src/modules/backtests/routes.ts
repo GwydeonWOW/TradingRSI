@@ -246,7 +246,7 @@ export async function backtestRoutes(app: FastifyInstance) {
         success: true,
         data: {
           metrics: aggregatedMetrics,
-          trades: allTrades,
+          trades: allTrades.sort((a, b) => a.entryTime - b.entryTime),
           equityCurve: mergedCurve,
           perSymbol: perSymbolResults,
           symbols,
