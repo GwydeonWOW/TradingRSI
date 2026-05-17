@@ -193,14 +193,21 @@ export async function backtestRoutes(app: FastifyInstance) {
         commissionRate,
       });
 
-      // Build per-symbol breakdown for display
-      const perSymbol: Record<string, { trades: typeof result.trades; totalPnl: number }> = {};
+      // Build per-symbol breakdown with metrics for display
+      const perSymbol: Record<string, { metrics: { totalPnl: number; totalTrades: number; winRate: number; sharpeRatio: number }; trades: typeof result.trades }> = {};
       for (const trade of result.trades) {
         if (!perSymbol[trade.symbol]) {
-          perSymbol[trade.symbol] = { trades: [], totalPnl: 0 };
+          perSymbol[trade.symbol] = { metrics: { totalPnl: 0, totalTrades: 0, winRate: 0, sharpeRatio: 0 }, trades: [] };
         }
         perSymbol[trade.symbol]!.trades.push(trade);
-        perSymbol[trade.symbol]!.totalPnl += trade.pnl;
+        perSymbol[trade.symbol]!.metrics.totalPnl += trade.pnl;
+        perSymbol[trade.symbol]!.metrics.totalTrades++;
+      }
+      // Calculate per-symbol win rates
+      for (const sym of Object.keys(perSymbol)) {
+        const symTrades = perSymbol[sym]!.trades;
+        const wins = symTrades.filter(t => t.pnl > 0).length;
+        perSymbol[sym]!.metrics.winRate = symTrades.length > 0 ? (wins / symTrades.length) * 100 : 0;
       }
 
       // Save as audit event

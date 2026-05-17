@@ -247,12 +247,23 @@ export function runMultiSymbolBacktest(
     }
   }
 
-  // Update last equity curve point
+  // Update last equity curve point with final cash
   if (equityCurve.length > 0) {
     equityCurve[equityCurve.length - 1]!.equity = cash;
   }
 
-  const metrics = calculateMetrics(trades, params.initialCapital, equityCurve);
+  // Deduplicate equity curve: multiple symbols can share the same timestamp.
+  // Keep the last equity value for each timestamp.
+  const dedupedCurve: typeof equityCurve = [];
+  for (const point of equityCurve) {
+    if (dedupedCurve.length > 0 && dedupedCurve[dedupedCurve.length - 1]!.time === point.time) {
+      dedupedCurve[dedupedCurve.length - 1]!.equity = point.equity;
+    } else {
+      dedupedCurve.push({ time: point.time, equity: point.equity });
+    }
+  }
+
+  const metrics = calculateMetrics(trades, params.initialCapital, dedupedCurve);
 
   return {
     params: {
@@ -267,7 +278,7 @@ export function runMultiSymbolBacktest(
     },
     metrics,
     trades: trades.sort((a, b) => a.entryTime - b.entryTime),
-    equityCurve,
+    equityCurve: dedupedCurve,
   };
 }
 

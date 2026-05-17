@@ -161,8 +161,8 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes, initialCapital }
     const displayStart = Math.floor((t.entryTime - padMs) / 1000);
     const displayEnd = Math.floor((t.exitTime + padMs) / 1000);
     try {
-      // Fetch main interval with warm-up for RSI
-      const warmupMs = intervalToMs(interval) * 50;
+      // Fetch main interval with warm-up for RSI — 250 candles to match backtest warm-up
+      const warmupMs = intervalToMs(interval) * 250;
       const mainRes = await tradingApi.getKlines({
         symbol,
         interval,
@@ -192,7 +192,7 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes, initialCapital }
           closes = allMainCandles.map((c) => c.close);
           times = allMainCandles.map((c) => c.time);
         } else {
-          const tfWarmupMs = intervalToMs(tf.timeframe) * 50;
+          const tfWarmupMs = intervalToMs(tf.timeframe) * 250;
           const tfRes = await tradingApi.getKlines({
             symbol,
             interval: tf.timeframe,
