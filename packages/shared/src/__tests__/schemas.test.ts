@@ -9,7 +9,6 @@ const validConfig = {
     requireMultiTimeframeConfirmation: true,
     useSmaFilter: true,
     smaPeriod: 200,
-    cooldownMinutes: 360,
   },
   exit: {
     rsiAbove: 70,

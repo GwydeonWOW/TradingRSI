@@ -30,7 +30,6 @@ const defaultConfig: StrategyConfig = {
     smaPeriod: 200,
     useVolumeConfirmation: false,
     volumeMultiplier: 1.5,
-    cooldownMinutes: 360,
   },
   exit: {
     rsiAbove: 70,
@@ -410,11 +409,6 @@ function StepEntry({ config, onUpdate }: { config: StrategyConfig; onUpdate: <K 
             </div>
           )}
         </div>
-      </div>
-      <div>
-        <label className={labelClass}>Cooldown entrada (min)</label>
-        <input type="number" min={0} className={inputClass} value={config.entry.cooldownMinutes}
-          onChange={(e) => onUpdate('entry', { ...config.entry, cooldownMinutes: Number(e.target.value) })} />
       </div>
     </div>
   );

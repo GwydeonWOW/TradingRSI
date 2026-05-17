@@ -53,6 +53,11 @@ export async function orderRoutes(app: FastifyInstance) {
     if (query.symbol) where.symbol = query.symbol;
     if (query.signalType) where.signalType = query.signalType;
 
+    // Exclude HOLD signals — only return actionable signals
+    if (!where.signalType) {
+      where.signalType = { in: ['BUY_SIGNAL', 'SELL_SIGNAL', 'BLOCKED_BY_RISK', 'BLOCKED_BY_ENVIRONMENT'] };
+    }
+
     const signals = await prisma.signal.findMany({
       where,
       orderBy: { createdAt: 'desc' },

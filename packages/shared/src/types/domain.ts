@@ -41,7 +41,6 @@ export interface EntryConfig {
   smaPeriod: number;
   useVolumeConfirmation?: boolean;
   volumeMultiplier?: number;
-  cooldownMinutes: number;
 }
 
 export interface ExitConfig {

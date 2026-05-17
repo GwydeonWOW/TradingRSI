@@ -60,9 +60,8 @@ export function SignalsPage() {
           <option value="">Todas</option>
           <option value="BUY_SIGNAL">Buy Signal</option>
           <option value="SELL_SIGNAL">Sell Signal</option>
-          <option value="HOLD">Hold</option>
-          <option value="BLOCKED_NO_POSITION">Blocked (No Position)</option>
-          <option value="BLOCKED_ALREADY_POSITION">Blocked (Already Position)</option>
+          <option value="BLOCKED_BY_RISK">Blocked (Risk)</option>
+          <option value="BLOCKED_BY_ENVIRONMENT">Blocked (Environment)</option>
         </select>
       </div>
 

@@ -138,7 +138,7 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
   );
 }
 
-function TradesTable({ trades, symbol, interval, rsiTimeframes }: { trades: BacktestTrade[]; symbol: string; interval: string; rsiTimeframes: RsiTimeframeInfo[] }) {
+function TradesTable({ trades, symbol, interval, rsiTimeframes, initialCapital }: { trades: BacktestTrade[]; symbol: string; interval: string; rsiTimeframes: RsiTimeframeInfo[]; initialCapital: number }) {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [chartData, setChartData] = useState<CandleData[]>([]);
   const [rsiSeriesData, setRsiSeriesData] = useState<RsiSeriesConfig[]>([]);
@@ -250,13 +250,18 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes }: { trades: Back
             <th className="px-4 py-3 font-medium text-text-secondary">Cantidad</th>
             <th className="px-4 py-3 font-medium text-text-secondary">PnL</th>
             <th className="px-4 py-3 font-medium text-text-secondary">PnL %</th>
+            <th className="px-4 py-3 font-medium text-text-secondary">Balance</th>
             <th className="px-4 py-3 font-medium text-text-secondary">Razon</th>
             <th className="px-4 py-3 font-medium text-text-secondary">RSI</th>
             <th className="px-4 py-3 font-medium text-text-secondary"></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {trades.map((t, i) => (
+          {trades.reduce<Array<{ trade: BacktestTrade; balance: number }>>((acc, t, i) => {
+            const prevBalance = i === 0 ? initialCapital : acc[i - 1]!.balance;
+            acc.push({ trade: t, balance: prevBalance + t.pnl });
+            return acc;
+          }, []).map(({ trade: t, balance }, i) => (
             <>
               <tr key={i} className={`hover:bg-bg-hover ${expandedIdx === i ? 'bg-bg-hover' : ''}`}>
                 <td className="px-4 py-2">
@@ -278,6 +283,9 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes }: { trades: Back
                 <td className={`px-4 py-2 ${pnlColor(t.pnlPct)}`}>
                   {pnlSign(t.pnlPct)}{t.pnlPct.toFixed(2)}%
                 </td>
+                <td className={`px-4 py-2 font-mono font-medium ${pnlColor(balance - initialCapital)}`}>
+                  {balance.toFixed(2)}
+                </td>
                 <td className="px-4 py-2 text-text-muted text-xs">{t.exitReason}</td>
                 <td className="px-4 py-2 text-xs text-text-muted">
                   {(t as any).entryRsi != null ? (t as any).entryRsi.toFixed(1) : '-'}
@@ -295,7 +303,7 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes }: { trades: Back
               </tr>
               {expandedIdx === i && (
                 <tr key={`${i}-chart`}>
-                  <td colSpan={12} className="bg-bg-primary p-4">
+                  <td colSpan={13} className="bg-bg-primary p-4">
                     {chartLoading ? (
                       <div className="flex h-[300px] items-center justify-center">
                         <LoadingSpinner />
@@ -635,7 +643,7 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
           {/* Trades */}
           <div>
             <h3 className="mb-2 text-sm font-medium text-text-secondary">Trades ({result.trades.length})</h3>
-            <TradesTable trades={result.trades} symbol={(result.symbols ?? [])[0] ?? strategySymbols[0] ?? ''} interval={interval} rsiTimeframes={rsiTimeframes} />
+            <TradesTable trades={result.trades} symbol={(result.symbols ?? [])[0] ?? strategySymbols[0] ?? ''} interval={interval} rsiTimeframes={rsiTimeframes} initialCapital={parseFloat(initialCapital) || 1000} />
           </div>
         </div>
       )}

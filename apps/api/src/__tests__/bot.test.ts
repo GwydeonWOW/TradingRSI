@@ -17,7 +17,7 @@ vi.mock('../infrastructure/db/prisma.js', () => ({
           config: {
             symbols: ['BTCUSDT'],
             timeframes: ['1h'],
-            entry: { rsiBelow: 30, requireMultiTimeframeConfirmation: false, useSmaFilter: false, smaPeriod: 200, cooldownMinutes: 0 },
+            entry: { rsiBelow: 30, requireMultiTimeframeConfirmation: false, useSmaFilter: false, smaPeriod: 200 },
             exit: { rsiAbove: 70, takeProfitPct: 8, stopLossPct: 3, trailingStopPct: null },
             risk: { quoteAmountPerTrade: 25, maxOpenPositions: 5, maxPositionsPerSymbol: 2, maxTotalExposureQuote: 500, maxDailyLossPct: 5, cooldownMinutes: 0 },
             execution: { orderType: 'MARKET', useOrderTestBeforeRealOrder: true, dryRun: true },

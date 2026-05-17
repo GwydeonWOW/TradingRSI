@@ -26,8 +26,7 @@ const CONFIG_FIELDS: ConfigField[] = [
   { label: 'Max posiciones/simbolo', getValue: (c) => String(c.risk.maxPositionsPerSymbol) },
   { label: 'Max exposicion', getValue: (c) => `${c.risk.maxTotalExposureQuote} USDT` },
   { label: 'Max perdida diaria %', getValue: (c) => `${c.risk.maxDailyLossPct}%` },
-  { label: 'Cooldown entrada (min)', getValue: (c) => String(c.entry.cooldownMinutes) },
-  { label: 'Cooldown riesgo (min)', getValue: (c) => String(c.risk.cooldownMinutes) },
+  { label: 'Cooldown (min)', getValue: (c) => String(c.risk.cooldownMinutes) },
   { label: 'Dry Run', getValue: (c) => c.execution.dryRun ? 'Si' : 'No' },
   { label: 'Order test previo', getValue: (c) => c.execution.useOrderTestBeforeRealOrder ? 'Si' : 'No' },
 ];

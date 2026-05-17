@@ -32,7 +32,6 @@ const defaultConfig: StrategyConfig = {
     smaPeriod: 200,
     useVolumeConfirmation: false,
     volumeMultiplier: 1.5,
-    cooldownMinutes: 360,
   },
   exit: {
     rsiAbove: 70,
@@ -545,16 +544,6 @@ function StepEntry({
           )}
         </div>
       </div>
-
-      {/* Cooldown */}
-      <div>
-        <label className={labelClass}>Cooldown entrada (min)</label>
-        <input
-          type="number" min={0} className={inputClass}
-          value={config.entry.cooldownMinutes}
-          onChange={(e) => onUpdate('entry', { ...config.entry, cooldownMinutes: Number(e.target.value) })}
-        />
-      </div>
     </div>
   );
 }
@@ -803,7 +792,6 @@ function StepSummary({
           <SummaryRow label="SMA Filter" value={config.entry.useSmaFilter ? `Si (${config.entry.smaPeriod})` : 'No'} />
           <SummaryRow label="Multi-TF Confirm" value={config.entry.requireMultiTimeframeConfirmation ? 'Si' : 'No'} />
           <SummaryRow label="Vol. Confirmacion" value={((config.entry as unknown as Record<string, unknown>).useVolumeConfirmation as boolean) ? `Si (${(config.entry as unknown as Record<string, unknown>).volumeMultiplier ?? 1.5}x)` : 'No'} />
-          <SummaryRow label="Cooldown" value={`${config.entry.cooldownMinutes} min`} />
         </SummarySection>
 
         <SummarySection title="Reglas de Salida">

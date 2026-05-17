@@ -18,7 +18,6 @@ export const EntryConfigSchema = z.object({
   smaPeriod: z.number().positive(),
   useVolumeConfirmation: z.boolean().optional(),
   volumeMultiplier: z.number().positive().optional(),
-  cooldownMinutes: z.number().nonnegative(),
 });
 
 export const ExitConfigSchema = z.object({

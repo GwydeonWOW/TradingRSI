@@ -13,7 +13,6 @@ const baseConfig: StrategyConfig = {
     requireMultiTimeframeConfirmation: false,
     useSmaFilter: false,
     smaPeriod: 200,
-    cooldownMinutes: 0,
   },
   exit: {
     rsiAbove: 70,
