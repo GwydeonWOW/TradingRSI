@@ -435,7 +435,7 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
   const [startDate, setStartDate] = useState(formatDateInput(thirtyDaysAgo));
   const [endDate, setEndDate] = useState(formatDateInput(now));
   const [initialCapital, setInitialCapital] = useState('1000');
-  const [commissionRate, setCommissionRate] = useState('0.001');
+  const [commissionRate, setCommissionRate] = useState('0.00095');
 
   useEffect(() => {
     fetchStrategies();

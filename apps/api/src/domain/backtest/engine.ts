@@ -531,7 +531,9 @@ function calculateMetrics(
     ? trades.filter(t => t.pnl <= 0).reduce((sum, t) => sum + t.pnlPct, 0) / losingTrades
     : 0;
 
-  const avgTradeDuration = 0;
+  const avgTradeDuration = totalTrades > 0
+    ? trades.reduce((sum, t) => sum + (t.exitTime - t.entryTime), 0) / totalTrades / 60000
+    : 0;
 
   const sharpeRatio = calculateSharpeRatio(pnlValues);
 
