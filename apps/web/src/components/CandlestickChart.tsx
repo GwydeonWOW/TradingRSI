@@ -55,7 +55,16 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
       timeScale: { borderColor: '#1e293b', timeVisible: true },
     };
 
-    const chart = createChart(containerRef.current, { ...darkTheme, height });
+    const chart = createChart(containerRef.current, {
+      ...darkTheme,
+      height,
+      localization: {
+        timeFormatter: (time: number) => {
+          const d = new Date(time * 1000);
+          return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        },
+      },
+    });
 
     chartRef.current = chart;
 
@@ -160,7 +169,16 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
     const hasRsi = rsiSeries && rsiSeries.length > 0 && rsiSeries.some((s) => s.data.length > 0);
 
     if (rsiContainerRef.current && hasRsi) {
-      rsiChart = createChart(rsiContainerRef.current, { ...darkTheme, height: 150 });
+      rsiChart = createChart(rsiContainerRef.current, {
+        ...darkTheme,
+        height: 150,
+        localization: {
+          timeFormatter: (time: number) => {
+            const d = new Date(time * 1000);
+            return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+          },
+        },
+      });
 
       // Reference lines
       const refSeries = rsiChart.addSeries(LineSeries, {

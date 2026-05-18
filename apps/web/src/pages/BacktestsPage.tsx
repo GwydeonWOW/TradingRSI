@@ -527,8 +527,8 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
       const res = await backtestsApi.run({
         strategyId,
         interval,
-        startDate,
-        endDate,
+        startDate: new Date(startDate + 'T00:00:00').toISOString(),
+        endDate: new Date(endDate + 'T23:59:59.999').toISOString(),
         initialCapital: parseFloat(initialCapital) || 1000,
         commissionRate: parseFloat(commissionRate) || 0.001,
       });

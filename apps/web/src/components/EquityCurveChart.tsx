@@ -35,6 +35,12 @@ export function EquityCurveChart({ equity, drawdown, height = 300 }: EquityCurve
       grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
       rightPriceScale: { borderColor: '#1e293b' },
       timeScale: { borderColor: '#1e293b', timeVisible: true },
+      localization: {
+        timeFormatter: (time: number) => {
+          const d = new Date(time * 1000);
+          return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        },
+      },
     });
 
     chartRef.current = chart;

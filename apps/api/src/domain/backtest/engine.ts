@@ -79,6 +79,7 @@ interface SymbolRun {
   candles: BacktestCandle[];
   closesSoFar: number[];
   openPosition: OpenPosition | null;
+  lastExitTime: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +107,7 @@ export function runMultiSymbolBacktest(
     candles: sd.candles,
     closesSoFar: [],
     openPosition: null,
+    lastExitTime: 0,
   }));
 
   // Build merged chronological event stream
@@ -157,6 +159,7 @@ export function runMultiSymbolBacktest(
         exitResult.trade.symbol = run.symbol;
         trades.push(exitResult.trade);
         cash += exitResult.proceeds;
+        run.lastExitTime = candle.openTime;
         run.openPosition = null;
       }
     }
@@ -183,6 +186,10 @@ export function runMultiSymbolBacktest(
         }
       }
 
+      // Cooldown check
+      const cooldownMs = risk.cooldownMinutes * 60000;
+      const inCooldown = run.lastExitTime > 0 && (candle.openTime - run.lastExitTime) < cooldownMs;
+
       // Position limits
       const totalOpenPositions = runs.filter((r) => r.openPosition !== null).length;
       const totalExposure = runs.reduce((sum, r) => sum + (r.openPosition?.investedQuote ?? 0), 0);
@@ -190,7 +197,7 @@ export function runMultiSymbolBacktest(
       const withinLimits = totalOpenPositions < risk.maxOpenPositions
         && totalExposure + risk.quoteAmountPerTrade <= risk.maxTotalExposureQuote;
 
-      if (buySignal && !smaBlocked && withinLimits) {
+      if (buySignal && !smaBlocked && !inCooldown && withinLimits) {
         const investedQuote = Math.min(risk.quoteAmountPerTrade, cash);
         if (investedQuote > 0) {
           const commission = investedQuote * params.commissionRate;
