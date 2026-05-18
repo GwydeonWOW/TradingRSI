@@ -46,6 +46,8 @@ interface ChartState {
   rsiChart: IChartApi | null;
   candleSeries: ISeriesApi<'Candlestick'>;
   volumeSeries: ISeriesApi<'Histogram'>;
+  sma50Series: ISeriesApi<'Line'>;
+  sma200Series: ISeriesApi<'Line'>;
   rsiSeries: ISeriesApi<'Line'> | null;
   rsiAnchorSeries: ISeriesApi<'Line'> | null;
   syncCleanup: () => void;
@@ -80,6 +82,13 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
       priceFormat: { type: 'volume' }, priceScaleId: 'volume',
     });
     priceChart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+
+    const sma50Series = priceChart.addSeries(LineSeries, {
+      color: '#fb9800', lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: 'SMA 50',
+    });
+    const sma200Series = priceChart.addSeries(LineSeries, {
+      color: '#f60c0c', lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: 'SMA 200',
+    });
 
     let rsiChart: IChartApi | null = null;
     let rsiSeries: ISeriesApi<'Line'> | null = null;
@@ -122,7 +131,7 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
     }
 
     stateRef.current = {
-      priceChart, rsiChart, candleSeries, volumeSeries, rsiSeries, rsiAnchorSeries, syncCleanup,
+      priceChart, rsiChart, candleSeries, volumeSeries, sma50Series, sma200Series, rsiSeries, rsiAnchorSeries, syncCleanup,
       lastDataLen: 0, lastRsiLen: 0,
     };
 
@@ -151,6 +160,13 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
       open: d.open, high: d.high, low: d.low, close: d.close,
     }));
     state.candleSeries.setData(candleData);
+
+    // SMA overlays
+    const closes = data.map((d) => d.close);
+    const sma50 = computeSma(closes, 50);
+    const sma200 = computeSma(closes, 200);
+    state.sma50Series.setData(sma50.map((v, i) => ({ time: data[i]!.time as Time, value: v })).filter((p) => !Number.isNaN(p.value)));
+    state.sma200Series.setData(sma200.map((v, i) => ({ time: data[i]!.time as Time, value: v })).filter((p) => !Number.isNaN(p.value)));
 
     state.volumeSeries.setData(
       data.filter((d) => d.volume !== undefined).map((d) => ({
@@ -200,6 +216,10 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
 
   return (
     <div className="w-full rounded-lg overflow-hidden">
+      <div className="flex items-center gap-4 bg-[#0f1729] px-3 py-1">
+        <span className="text-xs font-medium text-[#fb9800]">SMA 50</span>
+        <span className="text-xs font-medium text-[#f60c0c]">SMA 200</span>
+      </div>
       <div ref={priceContainerRef} />
       {rsiData && rsiData.length > 0 && (
         <div>
@@ -211,4 +231,18 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
       )}
     </div>
   );
+}
+
+function computeSma(values: number[], period: number): number[] {
+  const result: number[] = [];
+  for (let i = 0; i < values.length; i++) {
+    if (i < period - 1) {
+      result.push(NaN);
+    } else {
+      let sum = 0;
+      for (let j = i - period + 1; j <= i; j++) sum += values[j]!;
+      result.push(sum / period);
+    }
+  }
+  return result;
 }

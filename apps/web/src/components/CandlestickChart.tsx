@@ -124,6 +124,25 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
       );
     }
 
+    // SMA overlays
+    const closes = data.map((d) => d.close);
+    const sma50 = computeSma(closes, 50);
+    const sma200 = computeSma(closes, 200);
+
+    const sma50Series = chart.addSeries(LineSeries, {
+      color: '#fb9800', lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: 'SMA 50',
+    });
+    sma50Series.setData(
+      sma50.map((v, i) => ({ time: data[i]!.time as any, value: v })).filter((p) => !Number.isNaN(p.value)),
+    );
+
+    const sma200Series = chart.addSeries(LineSeries, {
+      color: '#f60c0c', lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: 'SMA 200',
+    });
+    sma200Series.setData(
+      sma200.map((v, i) => ({ time: data[i]!.time as any, value: v })).filter((p) => !Number.isNaN(p.value)),
+    );
+
     // Liquidity score line
     if (liquidityScores && liquidityScores.length > 0) {
       const liqSeries = chart.addSeries(LineSeries, {
@@ -249,6 +268,10 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
 
   return (
     <div className="w-full rounded-lg overflow-hidden">
+      <div className="flex items-center gap-4 bg-[#0f1729] px-3 py-1">
+        <span className="text-xs font-medium text-[#fb9800]">SMA 50</span>
+        <span className="text-xs font-medium text-[#f60c0c]">SMA 200</span>
+      </div>
       <div ref={containerRef} />
       {rsiSeries && rsiSeries.length > 0 && rsiSeries.some((s) => s.data.length > 0) && (
         <div>
@@ -262,4 +285,18 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
       )}
     </div>
   );
+}
+
+function computeSma(values: number[], period: number): number[] {
+  const result: number[] = [];
+  for (let i = 0; i < values.length; i++) {
+    if (i < period - 1) {
+      result.push(NaN);
+    } else {
+      let sum = 0;
+      for (let j = i - period + 1; j <= i; j++) sum += values[j]!;
+      result.push(sum / period);
+    }
+  }
+  return result;
 }
