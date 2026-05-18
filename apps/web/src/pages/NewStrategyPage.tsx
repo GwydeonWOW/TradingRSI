@@ -603,7 +603,13 @@ function StepSummary({ config, name, description }: { config: StrategyConfig; na
         <div className="space-y-1">
           <div className="flex justify-between text-sm"><span className="text-text-muted">Por trade</span><span className="font-medium text-text-primary">{config.risk.quoteAmountPerTrade} USDT</span></div>
           <div className="flex justify-between text-sm"><span className="text-text-muted">Max posiciones</span><span className="font-medium text-text-primary">{config.risk.maxOpenPositions}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-text-muted">Max por simbolo</span><span className="font-medium text-text-primary">{config.risk.maxPositionsPerSymbol}</span></div>
           <div className="flex justify-between text-sm"><span className="text-text-muted">Exposicion max</span><span className="font-medium text-text-primary">{config.risk.maxTotalExposureQuote} USDT</span></div>
+          <div className="flex justify-between text-sm"><span className="text-text-muted">Perdida diaria max</span><span className="font-medium text-text-primary">{config.risk.maxDailyLossPct}%</span></div>
+          <div className="flex justify-between text-sm"><span className="text-text-muted">Cooldown</span><span className="font-medium text-text-primary">{config.risk.cooldownMinutes > 0 ? `${config.risk.cooldownMinutes} min` : 'Desactivado'}</span></div>
+          {config.btcStability?.enabled && (
+            <div className="flex justify-between text-sm"><span className="text-text-muted">BTC Stability</span><span className="font-medium text-text-primary">Activado (min {config.btcStability.minScore}/5)</span></div>
+          )}
         </div>
       </div>
       <div className="rounded-md border border-border bg-bg-primary p-3">

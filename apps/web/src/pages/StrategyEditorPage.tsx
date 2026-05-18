@@ -810,6 +810,10 @@ function StepSummary({
           <SummaryRow label="Max por simbolo" value={String(config.risk.maxPositionsPerSymbol)} />
           <SummaryRow label="Exposicion max" value={`${config.risk.maxTotalExposureQuote} USDT`} />
           <SummaryRow label="Perdida diaria max" value={`${config.risk.maxDailyLossPct}%`} />
+          <SummaryRow label="Cooldown" value={config.risk.cooldownMinutes > 0 ? `${config.risk.cooldownMinutes} min` : 'Desactivado'} />
+          {config.btcStability?.enabled && (
+            <SummaryRow label="BTC Stability" value={`Activado (min ${config.btcStability.minScore}/5)`} />
+          )}
         </SummarySection>
 
         <SummarySection title="Ejecucion">

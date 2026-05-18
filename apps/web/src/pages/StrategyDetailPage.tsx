@@ -19,7 +19,7 @@ export function StrategyDetailPage() {
   // Fetch config for latest version when strategy loads
   useEffect(() => {
     if (!strategy) return;
-    const latest = strategy.versions[strategy.versions.length - 1];
+    const latest = strategy.versions[0];
     if (latest) fetchVersionConfig(latest.id);
   }, [strategy?.versions.length]);
 
@@ -116,7 +116,7 @@ export function StrategyDetailPage() {
     );
   }
 
-  const latestVersion = strategy.versions[strategy.versions.length - 1];
+  const latestVersion = strategy.versions[0];
   const latestVersionId = latestVersion?.id;
 
   return (
