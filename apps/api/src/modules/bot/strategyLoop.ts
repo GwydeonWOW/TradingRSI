@@ -529,22 +529,23 @@ export async function runEvaluationCycle(): Promise<void> {
                   });
                 }
               } else if (signal.signalType === 'SELL_SIGNAL') {
-                // Find open position for this symbol
-                const openPosition = openPositions.find(p => p.symbol === symbol);
-                if (!openPosition) {
+                // Find ALL open positions for this symbol
+                const symbolPositions = openPositions.filter(p => p.symbol === symbol);
+                if (symbolPositions.length === 0) {
                   addEvent('error', { message: `No open position to sell for ${symbol}` });
                   continue;
                 }
 
-                const positionQty = Number(openPosition.quantity ?? 0);
-                if (positionQty <= 0) {
-                  addEvent('error', { message: `Position quantity is 0 for ${symbol}` });
+                // Sum quantities across all open positions for this symbol
+                const totalQty = symbolPositions.reduce((sum, p) => sum + Number(p.quantity ?? 0), 0);
+                if (totalQty <= 0) {
+                  addEvent('error', { message: `Total position quantity is 0 for ${symbol}` });
                   continue;
                 }
 
                 // Adjust quantity to LOT_SIZE
                 const symbolInfo = await getSymbolInfo(envConfig.restBaseUrl, symbol);
-                const adjustedQty = adjustQuantity(positionQty, symbolInfo.stepSize);
+                const adjustedQty = adjustQuantity(totalQty, symbolInfo.stepSize);
 
                 if (adjustedQty <= 0) {
                   addEvent('error', { message: `Adjusted quantity is 0 for ${symbol} (stepSize: ${symbolInfo.stepSize})` });
@@ -609,46 +610,52 @@ export async function runEvaluationCycle(): Promise<void> {
                   });
                 }
 
-                // Close position from real fills
+                // Close ALL positions for this symbol, distributing exit value proportionally
                 if (processed.executedQty > 0) {
-                  const entryPrice = Number(openPosition.entryPrice ?? 0);
-                  const investedQuote = Number(openPosition.investedQuote ?? 0);
-                  const exitValue = processed.cumulativeQuoteQty;
-                  const realizedPnl = exitValue - investedQuote;
-                  const realizedPnlPct = investedQuote > 0 ? (realizedPnl / investedQuote) * 100 : 0;
+                  const exitPrice = processed.avgPrice as number;
+                  const totalExitValue = processed.cumulativeQuoteQty;
+                  const totalInvested = symbolPositions.reduce((sum, p) => sum + Number(p.investedQuote ?? 0), 0);
 
-                  await prisma.position.update({
-                    where: { id: openPosition.id },
-                    data: {
-                      status: 'closed',
-                      exitOrderId: exchangeOrder.id,
-                      exitPrice: processed.avgPrice as number,
-                      realizedPnl: realizedPnl as number,
-                      realizedPnlPct: realizedPnlPct as number,
-                      closedAt: new Date(),
-                    },
-                  });
-                  addEvent('position_closed', {
-                    symbol,
-                    pnl: realizedPnl,
-                    pnlPct: realizedPnlPct,
-                    source: 'binance_demo',
-                    orderId: exchangeOrder.id,
-                  });
-                  await createAuditEvent({
-                    actorType: 'bot',
-                    eventType: 'position_closed_binance_demo',
-                    entityType: 'position',
-                    entityId: openPosition.id,
-                    payload: {
+                  for (const pos of symbolPositions) {
+                    const investedQuote = Number(pos.investedQuote ?? 0);
+                    const shareRatio = totalInvested > 0 ? investedQuote / totalInvested : 1 / symbolPositions.length;
+                    const positionExitValue = totalExitValue * shareRatio;
+                    const realizedPnl = positionExitValue - investedQuote;
+                    const realizedPnlPct = investedQuote > 0 ? (realizedPnl / investedQuote) * 100 : 0;
+
+                    await prisma.position.update({
+                      where: { id: pos.id },
+                      data: {
+                        status: 'closed',
+                        exitOrderId: exchangeOrder.id,
+                        exitPrice,
+                        realizedPnl: realizedPnl as number,
+                        realizedPnlPct: realizedPnlPct as number,
+                        closedAt: new Date(),
+                      },
+                    });
+                    addEvent('position_closed', {
                       symbol,
                       pnl: realizedPnl,
                       pnlPct: realizedPnlPct,
-                      exitPrice: processed.avgPrice,
-                      exitValue,
+                      source: 'binance_demo',
                       orderId: exchangeOrder.id,
-                    },
-                  });
+                    });
+                    await createAuditEvent({
+                      actorType: 'bot',
+                      eventType: 'position_closed_binance_demo',
+                      entityType: 'position',
+                      entityId: pos.id,
+                      payload: {
+                        symbol,
+                        pnl: realizedPnl,
+                        pnlPct: realizedPnlPct,
+                        exitPrice,
+                        exitValue: positionExitValue,
+                        orderId: exchangeOrder.id,
+                      },
+                    });
+                  }
                 }
               }
             } catch (err) {

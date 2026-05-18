@@ -225,42 +225,9 @@ export function runMultiSymbolBacktest(
     equityCurve.push({ time: candle.openTime, equity: computeEquity(cash, runs) });
   }
 
-  // Close all remaining positions at last candle
+  // Discard positions still open at end of data — they are not completed trades
   for (const run of runs) {
-    for (const pos of run.openPositions) {
-      if (run.candles.length > 0) {
-        const lastCandle = run.candles[run.candles.length - 1]!;
-        const exitPrice = lastCandle.close;
-        const grossValue = pos.quantity * exitPrice;
-        const commission = grossValue * params.commissionRate;
-        const netProceeds = grossValue - commission;
-        const pnl = netProceeds - pos.investedQuote;
-        const pnlPct = (pnl / pos.investedQuote) * 100;
-
-        trades.push({
-          symbol: run.symbol,
-          entryTime: pos.entryTime,
-          exitTime: lastCandle.openTime,
-          side: 'BUY',
-          entryPrice: pos.entryPrice,
-          exitPrice,
-          quantity: pos.quantity,
-          investedQuote: pos.investedQuote,
-          pnl,
-          pnlPct,
-          entryRsi: pos.entryRsi,
-          exitRsi: null,
-          exitReason: 'end_of_data',
-        });
-        cash += netProceeds;
-      }
-    }
     run.openPositions = [];
-  }
-
-  // Update last equity curve point with final cash
-  if (equityCurve.length > 0) {
-    equityCurve[equityCurve.length - 1]!.equity = cash;
   }
 
   // Deduplicate equity curve: multiple symbols can share the same timestamp.
