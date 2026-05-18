@@ -192,10 +192,10 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
       refSeries.createPriceLine({ price: 30, color: '#10b981', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '30' });
       refSeries.createPriceLine({ price: 50, color: '#475569', lineWidth: 1, lineStyle: 1, axisLabelVisible: false, title: '' });
 
-      // Seed the reference series with the full time range so lines span the chart
+      // Seed the reference series with ALL candle timestamps so logical indices align
       const allRsiPoints = rsiSeries.flatMap((s) => s.data);
       if (allRsiPoints.length > 0) {
-        refSeries.setData([{ time: allRsiPoints[0]!.time as any, value: 50 }, { time: allRsiPoints[allRsiPoints.length - 1]!.time as any, value: 50 }]);
+        refSeries.setData(data.map((d) => ({ time: d.time as any, value: 50 })));
       }
 
       // Draw each RSI series

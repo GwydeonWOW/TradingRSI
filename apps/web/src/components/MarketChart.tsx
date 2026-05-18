@@ -47,6 +47,7 @@ interface ChartState {
   candleSeries: ISeriesApi<'Candlestick'>;
   volumeSeries: ISeriesApi<'Histogram'>;
   rsiSeries: ISeriesApi<'Line'> | null;
+  rsiAnchorSeries: ISeriesApi<'Line'> | null;
   syncCleanup: () => void;
   lastDataLen: number;
   lastRsiLen: number;
@@ -82,10 +83,21 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
 
     let rsiChart: IChartApi | null = null;
     let rsiSeries: ISeriesApi<'Line'> | null = null;
+    let rsiAnchorSeries: ISeriesApi<'Line'> | null = null;
     let syncCleanup = () => {};
 
     if (rsiContainerRef.current) {
       rsiChart = createChart(rsiContainerRef.current, { ...darkTheme, height: rsiHeight });
+
+      // Anchor series: invisible, covers ALL candle timestamps so logical indices align
+      rsiAnchorSeries = rsiChart.addSeries(LineSeries, {
+        color: 'transparent',
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+
       rsiSeries = rsiChart.addSeries(LineSeries, {
         color: '#8b5cf6', lineWidth: 2, priceLineVisible: false, lastValueVisible: true,
       });
@@ -110,7 +122,7 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
     }
 
     stateRef.current = {
-      priceChart, rsiChart, candleSeries, volumeSeries, rsiSeries, syncCleanup,
+      priceChart, rsiChart, candleSeries, volumeSeries, rsiSeries, rsiAnchorSeries, syncCleanup,
       lastDataLen: 0, lastRsiLen: 0,
     };
 
@@ -147,6 +159,11 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
         color: d.close >= d.open ? '#10b98140' : '#ef444440',
       })),
     );
+
+    // Update RSI anchor series with ALL candle timestamps so logical indices align
+    if (state.rsiAnchorSeries) {
+      state.rsiAnchorSeries.setData(data.map((d) => ({ time: d.time as Time, value: 50 })));
+    }
 
     // Only fit content on first load or when data length shrinks (symbol/timeframe change)
     if (data.length !== state.lastDataLen && (state.lastDataLen === 0 || data.length < state.lastDataLen)) {
