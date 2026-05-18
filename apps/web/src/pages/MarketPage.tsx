@@ -171,11 +171,17 @@ export function MarketPage() {
     return () => clearInterval(interval);
   }, [fetchPrices]);
 
-  useEffect(() => {
+  const fetchBtcStability = useCallback(() => {
     liquidityApi.getBtcStability()
       .then((res) => setBtcStability(res.data))
-      .catch(() => setBtcStability(null));
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetchBtcStability();
+    const interval = setInterval(fetchBtcStability, 60000);
+    return () => clearInterval(interval);
+  }, [fetchBtcStability]);
 
   const divergenceMarkers = useMemo(() => {
     if (!showDivergence || chartData.length < 30) return undefined;
