@@ -95,16 +95,18 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
       rsiSeries.createPriceLine({ price: 50, color: '#475569', lineWidth: 1, lineStyle: 1, axisLabelVisible: false, title: '' });
 
       let syncing = false;
-      priceChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-        if (syncing || !range || !rsiChart) return;
+      priceChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+        if (syncing || !rsiChart) return;
         syncing = true;
-        rsiChart.timeScale().setVisibleLogicalRange(range);
+        const timeRange = priceChart.timeScale().getVisibleRange();
+        if (timeRange) rsiChart.timeScale().setVisibleRange(timeRange);
         setTimeout(() => { syncing = false; }, 0);
       });
-      rsiChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-        if (syncing || !range) return;
+      rsiChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+        if (syncing) return;
         syncing = true;
-        priceChart.timeScale().setVisibleLogicalRange(range);
+        const timeRange = rsiChart!.timeScale().getVisibleRange();
+        if (timeRange) priceChart.timeScale().setVisibleRange(timeRange);
         setTimeout(() => { syncing = false; }, 0);
       });
     }

@@ -215,16 +215,18 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
 
       // Sync time scales between candlestick and RSI charts
       let syncing = false;
-      chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-        if (syncing || !range || !rsiChart) return;
+      chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+        if (syncing || !rsiChart) return;
         syncing = true;
-        rsiChart.timeScale().setVisibleLogicalRange(range);
+        const timeRange = chart.timeScale().getVisibleRange();
+        if (timeRange) rsiChart.timeScale().setVisibleRange(timeRange);
         setTimeout(() => { syncing = false; }, 0);
       });
-      rsiChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-        if (syncing || !range) return;
+      rsiChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+        if (syncing) return;
         syncing = true;
-        chart.timeScale().setVisibleLogicalRange(range);
+        const timeRange = rsiChart!.timeScale().getVisibleRange();
+        if (timeRange) chart.timeScale().setVisibleRange(timeRange);
         setTimeout(() => { syncing = false; }, 0);
       });
     }
