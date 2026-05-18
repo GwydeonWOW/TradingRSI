@@ -78,8 +78,8 @@ interface SymbolRun {
   symbol: string;
   candles: BacktestCandle[];
   closesSoFar: number[];
-  openPosition: OpenPosition | null;
-  lastExitTime: number;
+  openPositions: OpenPosition[];
+  lastEntryTime: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,8 +106,8 @@ export function runMultiSymbolBacktest(
     symbol: sd.symbol,
     candles: sd.candles,
     closesSoFar: [],
-    openPosition: null,
-    lastExitTime: 0,
+    openPositions: [],
+    lastEntryTime: 0,
   }));
 
   // Build merged chronological event stream
@@ -142,10 +142,11 @@ export function runMultiSymbolBacktest(
     const rsiValues = calculateRsi(run.closesSoFar, rsiPeriod);
     const rsiValue = rsiValues[rsiValues.length - 1]!;
 
-    // --- Check exit for this symbol ---
-    if (run.openPosition) {
+    // --- Check exits for this symbol (may have multiple open positions) ---
+    for (let pi = run.openPositions.length - 1; pi >= 0; pi--) {
+      const pos = run.openPositions[pi]!;
       const exitResult = checkExit(
-        run.openPosition,
+        pos,
         candle,
         rsiValue,
         exit,
@@ -159,13 +160,12 @@ export function runMultiSymbolBacktest(
         exitResult.trade.symbol = run.symbol;
         trades.push(exitResult.trade);
         cash += exitResult.proceeds;
-        run.lastExitTime = candle.openTime;
-        run.openPosition = null;
+        run.openPositions.splice(pi, 1);
       }
     }
 
     // --- Check entry for this symbol ---
-    if (!run.openPosition && !Number.isNaN(rsiValue)) {
+    if (!Number.isNaN(rsiValue)) {
       const entryMode = entry.entryMode ?? (entry.useRsiDivergence ? 'divergence' : 'rsi_threshold');
       let buySignal: boolean;
       if (entryMode === 'divergence') {
@@ -186,15 +186,16 @@ export function runMultiSymbolBacktest(
         }
       }
 
-      // Cooldown check
+      // Cooldown check (from last ENTRY time)
       const cooldownMs = risk.cooldownMinutes * 60000;
-      const inCooldown = run.lastExitTime > 0 && (candle.openTime - run.lastExitTime) < cooldownMs;
+      const inCooldown = run.lastEntryTime > 0 && (candle.openTime - run.lastEntryTime) < cooldownMs;
 
       // Position limits
-      const totalOpenPositions = runs.filter((r) => r.openPosition !== null).length;
-      const totalExposure = runs.reduce((sum, r) => sum + (r.openPosition?.investedQuote ?? 0), 0);
+      const totalOpenPositions = runs.reduce((sum, r) => sum + r.openPositions.length, 0);
+      const totalExposure = runs.reduce((sum, r) => sum + r.openPositions.reduce((s, p) => s + p.investedQuote, 0), 0);
 
-      const withinLimits = totalOpenPositions < risk.maxOpenPositions
+      const withinLimits = run.openPositions.length < risk.maxPositionsPerSymbol
+        && totalOpenPositions < risk.maxOpenPositions
         && totalExposure + risk.quoteAmountPerTrade <= risk.maxTotalExposureQuote;
 
       if (buySignal && !smaBlocked && !inCooldown && withinLimits) {
@@ -205,7 +206,7 @@ export function runMultiSymbolBacktest(
           const quantity = netInvested / candle.close;
           const entryRsi = Number.isNaN(rsiValue) ? null : Math.round(rsiValue * 100) / 100;
 
-          run.openPosition = {
+          run.openPositions.push({
             entryCandleIndex: event.candleIdx,
             entryTime: candle.openTime,
             entryPrice: candle.close,
@@ -214,7 +215,8 @@ export function runMultiSymbolBacktest(
             highestPrice: candle.high,
             entryRsi,
             symbol: run.symbol,
-          };
+          });
+          run.lastEntryTime = candle.openTime;
           cash -= investedQuote;
         }
       }
@@ -225,33 +227,35 @@ export function runMultiSymbolBacktest(
 
   // Close all remaining positions at last candle
   for (const run of runs) {
-    if (run.openPosition && run.candles.length > 0) {
-      const lastCandle = run.candles[run.candles.length - 1]!;
-      const exitPrice = lastCandle.close;
-      const grossValue = run.openPosition.quantity * exitPrice;
-      const commission = grossValue * params.commissionRate;
-      const netProceeds = grossValue - commission;
-      const pnl = netProceeds - run.openPosition.investedQuote;
-      const pnlPct = (pnl / run.openPosition.investedQuote) * 100;
+    for (const pos of run.openPositions) {
+      if (run.candles.length > 0) {
+        const lastCandle = run.candles[run.candles.length - 1]!;
+        const exitPrice = lastCandle.close;
+        const grossValue = pos.quantity * exitPrice;
+        const commission = grossValue * params.commissionRate;
+        const netProceeds = grossValue - commission;
+        const pnl = netProceeds - pos.investedQuote;
+        const pnlPct = (pnl / pos.investedQuote) * 100;
 
-      trades.push({
-        symbol: run.symbol,
-        entryTime: run.openPosition.entryTime,
-        exitTime: lastCandle.openTime,
-        side: 'BUY',
-        entryPrice: run.openPosition.entryPrice,
-        exitPrice,
-        quantity: run.openPosition.quantity,
-        investedQuote: run.openPosition.investedQuote,
-        pnl,
-        pnlPct,
-        entryRsi: run.openPosition.entryRsi,
-        exitRsi: null,
-        exitReason: 'end_of_data',
-      });
-      cash += netProceeds;
-      run.openPosition = null;
+        trades.push({
+          symbol: run.symbol,
+          entryTime: pos.entryTime,
+          exitTime: lastCandle.openTime,
+          side: 'BUY',
+          entryPrice: pos.entryPrice,
+          exitPrice,
+          quantity: pos.quantity,
+          investedQuote: pos.investedQuote,
+          pnl,
+          pnlPct,
+          entryRsi: pos.entryRsi,
+          exitRsi: null,
+          exitReason: 'end_of_data',
+        });
+        cash += netProceeds;
+      }
     }
+    run.openPositions = [];
   }
 
   // Update last equity curve point with final cash
@@ -292,9 +296,9 @@ export function runMultiSymbolBacktest(
 function computeEquity(cash: number, runs: SymbolRun[]): number {
   let equity = cash;
   for (const run of runs) {
-    if (run.openPosition) {
-      const lastClose = run.closesSoFar[run.closesSoFar.length - 1] ?? run.openPosition.entryPrice;
-      equity += run.openPosition.quantity * lastClose;
+    const lastClose = run.closesSoFar.length > 0 ? run.closesSoFar[run.closesSoFar.length - 1]! : 0;
+    for (const pos of run.openPositions) {
+      equity += pos.quantity * (lastClose || pos.entryPrice);
     }
   }
   return equity;
