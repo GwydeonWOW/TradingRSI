@@ -9,7 +9,6 @@ import { CandlestickChart, type CandleData, type RsiSeriesConfig } from '../comp
 import { EmptyState } from '../components/EmptyState.tsx';
 import { calculateRsi } from '@cryptorsi/indicators';
 
-const INTERVALS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
 const RSI_COLORS = ['#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#3b82f6'];
 
 function intervalToMs(interval: string): number {
@@ -432,7 +431,7 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
   const [strategyId, setStrategyId] = useState(preselectedStrategyId ?? '');
   const [strategySymbols, setStrategySymbols] = useState<string[]>([]);
   const [strategyConfig, setStrategyConfig] = useState<any>(null);
-  const [interval, setInterval_] = useState('1h');
+  const interval = strategyConfig?.timeframes?.[0] ?? '1h';
   const [startDate, setStartDate] = useState(formatDateInput(thirtyDaysAgo));
   const [endDate, setEndDate] = useState(formatDateInput(now));
   const [initialCapital, setInitialCapital] = useState('1000');
@@ -576,11 +575,9 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
           </div>
           <div>
             <label className={labelClass}>Intervalo</label>
-            <select value={interval} onChange={(e) => setInterval_(e.target.value)} className={inputClass}>
-              {INTERVALS.map((iv) => (
-                <option key={iv} value={iv}>{iv}</option>
-              ))}
-            </select>
+            <div className="flex min-h-[38px] items-center rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary">
+              {strategyConfig ? interval : <span className="text-text-muted">Selecciona una estrategia</span>}
+            </div>
           </div>
           <div>
             <label className={labelClass}>Fecha inicio</label>
@@ -596,14 +593,14 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
           </div>
           <div>
             <label className={labelClass}>Comision (%)</label>
-            <input type="number" value={(parseFloat(commissionRate) * 100).toFixed(1)} onChange={(e) => setCommissionRate(String(parseFloat(e.target.value) / 100 || 0))} min="0" step="0.1" className={inputClass} />
+            <input type="number" value={(parseFloat(commissionRate) * 100).toFixed(3)} onChange={(e) => setCommissionRate(String(parseFloat(e.target.value) / 100 || 0))} min="0" step="0.005" className={inputClass} />
           </div>
         </div>
         <div className="mt-4 flex items-center gap-3">
           <button
             type="button"
             onClick={handleRun}
-            disabled={loading || !strategyId || !startDate || !endDate}
+            disabled={loading || !strategyId || !strategyConfig || !startDate || !endDate}
             className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Ejecutando...' : 'Ejecutar Backtest'}
