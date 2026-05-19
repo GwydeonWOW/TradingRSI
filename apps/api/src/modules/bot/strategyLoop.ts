@@ -250,6 +250,17 @@ export async function runEvaluationCycle(): Promise<void> {
           const dailyInvested = closedToday.reduce((sum, p) => sum + Number(p.investedQuote ?? 0), 0);
           const dailyLossPct = dailyInvested > 0 ? (Math.abs(dailyLoss) / dailyInvested) * 100 : 0;
 
+          // Compound interest: calculate current capital from base + all accumulated PnL
+          let compoundCapital: number | undefined;
+          if (config.risk.compoundInterest) {
+            const allClosed = await prisma.position.findMany({
+              where: { strategyId: strategy.id, status: 'closed' },
+              select: { realizedPnl: true },
+            });
+            const totalPnl = allClosed.reduce((sum, p) => sum + Number(p.realizedPnl ?? 0), 0);
+            compoundCapital = config.risk.maxTotalExposureQuote + totalPnl;
+          }
+
           const riskCtx: RiskContext = {
             config,
             symbol,
@@ -298,7 +309,7 @@ export async function runEvaluationCycle(): Promise<void> {
               strategyVersionId: p.strategyVersionId,
             }));
 
-            const result = executeSimulation(signal, config, simPositions);
+            const result = executeSimulation(signal, config, simPositions, compoundCapital);
 
             if (result.action === 'OPEN' && result.position) {
               const pos = result.position;
@@ -356,7 +367,7 @@ export async function runEvaluationCycle(): Promise<void> {
               strategyVersionId: p.strategyVersionId,
             }));
 
-            const result = executeSimulation(signal, config, simPositions);
+            const result = executeSimulation(signal, config, simPositions, compoundCapital);
 
             if (result.action === 'OPEN' && result.position) {
               const pos = result.position;
@@ -440,7 +451,13 @@ export async function runEvaluationCycle(): Promise<void> {
                   symbol,
                   side: 'BUY',
                   type: 'MARKET',
-                  quoteOrderQty: config.risk.quoteAmountPerTrade.toString(),
+                  quoteOrderQty: (compoundCapital
+                    ? Math.min(
+                        (config.risk.quoteAmountPerTrade / config.risk.maxTotalExposureQuote) * compoundCapital,
+                        compoundCapital,
+                      )
+                    : config.risk.quoteAmountPerTrade
+                  ).toString(),
                   clientOrderId,
                 });
 
@@ -686,7 +703,13 @@ export async function runEvaluationCycle(): Promise<void> {
                   symbol,
                   side: 'BUY',
                   type: 'MARKET',
-                  quoteOrderQty: config.risk.quoteAmountPerTrade.toString(),
+                  quoteOrderQty: (compoundCapital
+                    ? Math.min(
+                        (config.risk.quoteAmountPerTrade / config.risk.maxTotalExposureQuote) * compoundCapital,
+                        compoundCapital,
+                      )
+                    : config.risk.quoteAmountPerTrade
+                  ).toString(),
                   newClientOrderId: `cryptorsi_test_${strategy.id}_${Date.now()}`,
                   newOrderRespType: 'FULL',
                   timestamp: Date.now().toString(),
@@ -710,7 +733,12 @@ export async function runEvaluationCycle(): Promise<void> {
                 addEvent('order_test_passed', { symbol, side: 'BUY', quoteAmount: config.risk.quoteAmountPerTrade });
 
                 // Create simulated position (dry-run doesn't create real orders)
-                const investedQuote = config.risk.quoteAmountPerTrade;
+                const investedQuote = compoundCapital
+                  ? Math.min(
+                      (config.risk.quoteAmountPerTrade / config.risk.maxTotalExposureQuote) * compoundCapital,
+                      compoundCapital,
+                    )
+                  : config.risk.quoteAmountPerTrade;
                 const quantity = investedQuote / signal.price;
                 await prisma.position.create({
                   data: {

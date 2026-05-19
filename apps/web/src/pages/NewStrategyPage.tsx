@@ -514,6 +514,21 @@ function StepRisk({ config, onUpdate }: { config: StrategyConfig; onUpdate: <K e
       <div className="mt-4 rounded-lg border border-border bg-bg-primary p-4">
         <div className="flex items-center justify-between">
           <div>
+            <h3 className="text-sm font-medium text-text-primary">Interes Compuesto</h3>
+            <p className="mt-0.5 text-xs text-text-muted">Reinvertir beneficios: el tamaño de cada trade escala con el capital acumulado.</p>
+          </div>
+          <label className="relative inline-flex cursor-pointer items-center">
+            <input type="checkbox" className="peer sr-only"
+              checked={config.risk.compoundInterest ?? false}
+              onChange={(e) => onUpdate('risk', { ...config.risk, compoundInterest: e.target.checked })} />
+            <div className="peer h-5 w-9 rounded-full bg-bg-tertiary after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-text-muted after:transition-all peer-checked:bg-accent peer-checked:after:translate-x-full peer-checked:after:bg-white" />
+          </label>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-border bg-bg-primary p-4">
+        <div className="flex items-center justify-between">
+          <div>
             <h3 className="text-sm font-medium text-text-primary">Filtro BTC Stability</h3>
             <p className="mt-0.5 text-xs text-text-muted">Bloquear entradas cuando BTC no es estable (ATR%, ADX, SMA20, estructura de precio).</p>
           </div>
@@ -622,6 +637,7 @@ function StepSummary({ config, name, description }: { config: StrategyConfig; na
           <div className="flex justify-between text-sm"><span className="text-text-muted">Exposicion max</span><span className="font-medium text-text-primary">{config.risk.maxTotalExposureQuote} USDT</span></div>
           <div className="flex justify-between text-sm"><span className="text-text-muted">Perdida diaria max</span><span className="font-medium text-text-primary">{config.risk.maxDailyLossPct}%</span></div>
           <div className="flex justify-between text-sm"><span className="text-text-muted">Cooldown</span><span className="font-medium text-text-primary">{config.risk.cooldownMinutes > 0 ? `${config.risk.cooldownMinutes} min` : 'Desactivado'}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-text-muted">Interes Compuesto</span><span className="font-medium text-text-primary">{config.risk.compoundInterest ? 'Si' : 'No'}</span></div>
           {config.btcStability?.enabled && (
             <div className="flex justify-between text-sm"><span className="text-text-muted">BTC Stability</span><span className="font-medium text-text-primary">Activado (min {config.btcStability.minScore}/5)</span></div>
           )}

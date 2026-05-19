@@ -216,7 +216,10 @@ export function runMultiSymbolBacktest(
         && totalExposure + risk.quoteAmountPerTrade <= risk.maxTotalExposureQuote;
 
       if (buySignal && !smaBlocked && !trendBlocked && !inCooldown && withinLimits) {
-        const investedQuote = Math.min(risk.quoteAmountPerTrade, cash);
+        const tradeSize = risk.compoundInterest
+          ? (risk.quoteAmountPerTrade / params.initialCapital) * cash
+          : risk.quoteAmountPerTrade;
+        const investedQuote = Math.min(tradeSize, cash);
         if (investedQuote > 0) {
           const commission = investedQuote * params.commissionRate;
           const netInvested = investedQuote - commission;
@@ -382,7 +385,10 @@ export function runBacktest(
       }
 
       if (buySignal && !smaBlocked && !trendBlocked) {
-        const investedQuote = Math.min(config.risk.quoteAmountPerTrade, capital);
+        const tradeSize = config.risk.compoundInterest
+          ? (config.risk.quoteAmountPerTrade / params.initialCapital) * capital
+          : config.risk.quoteAmountPerTrade;
+        const investedQuote = Math.min(tradeSize, capital);
         if (investedQuote > 0) {
           const commission = investedQuote * commissionRate;
           const netInvested = investedQuote - commission;

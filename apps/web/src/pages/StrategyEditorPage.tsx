@@ -702,6 +702,21 @@ function StepRisk({
       <div className="mt-4 rounded-lg border border-border bg-bg-primary p-4">
         <div className="flex items-center justify-between">
           <div>
+            <h3 className="text-sm font-medium text-text-primary">Interes Compuesto</h3>
+            <p className="mt-0.5 text-xs text-text-muted">Reinvertir beneficios: el tamaño de cada trade escala con el capital acumulado en vez de ser fijo.</p>
+          </div>
+          <label className="relative inline-flex cursor-pointer items-center">
+            <input type="checkbox" className="peer sr-only"
+              checked={config.risk.compoundInterest ?? false}
+              onChange={(e) => onUpdate('risk', { ...config.risk, compoundInterest: e.target.checked })} />
+            <div className="peer h-5 w-9 rounded-full bg-bg-tertiary after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-text-muted after:transition-all peer-checked:bg-accent peer-checked:after:translate-x-full peer-checked:after:bg-white" />
+          </label>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-border bg-bg-primary p-4">
+        <div className="flex items-center justify-between">
+          <div>
             <h3 className="text-sm font-medium text-text-primary">Filtro BTC Stability</h3>
             <p className="mt-0.5 text-xs text-text-muted">Bloquear entradas cuando BTC no es estable (ATR%, ADX, SMA20, estructura de precio).</p>
           </div>
@@ -828,6 +843,7 @@ function StepSummary({
           <SummaryRow label="Exposicion max" value={`${config.risk.maxTotalExposureQuote} USDT`} />
           <SummaryRow label="Perdida diaria max" value={`${config.risk.maxDailyLossPct}%`} />
           <SummaryRow label="Cooldown" value={config.risk.cooldownMinutes > 0 ? `${config.risk.cooldownMinutes} min` : 'Desactivado'} />
+          <SummaryRow label="Interes Compuesto" value={config.risk.compoundInterest ? 'Si' : 'No'} />
           {config.btcStability?.enabled && (
             <SummaryRow label="BTC Stability" value={`Activado (min ${config.btcStability.minScore}/5)`} />
           )}

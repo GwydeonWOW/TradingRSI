@@ -35,6 +35,7 @@ export const RiskConfigSchema = z.object({
   maxTotalExposureQuote: z.number().positive(),
   maxDailyLossPct: z.number().min(0).max(100),
   cooldownMinutes: z.number().nonnegative(),
+  compoundInterest: z.boolean().optional(),
 });
 
 export const ExecutionConfigSchema = z.object({

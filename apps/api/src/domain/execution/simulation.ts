@@ -28,6 +28,7 @@ export function executeSimulation(
   signal: SignalResult,
   config: StrategyConfig,
   existingPositions: SimulatedPosition[],
+  currentCapital?: number,
 ): SimulationResult {
   if (signal.signalType === 'BUY_SIGNAL') {
     // Check if already have position for this symbol
@@ -36,7 +37,10 @@ export function executeSimulation(
       return { action: 'NONE', reason: `Already have position for ${signal.symbol}` };
     }
 
-    const investedQuote = config.risk.quoteAmountPerTrade;
+    const tradeSize = config.risk.compoundInterest && currentCapital !== undefined
+      ? (config.risk.quoteAmountPerTrade / config.risk.maxTotalExposureQuote) * currentCapital
+      : config.risk.quoteAmountPerTrade;
+    const investedQuote = Math.min(tradeSize, currentCapital ?? config.risk.quoteAmountPerTrade);
     const quantity = investedQuote / signal.price;
 
     const position: SimulatedPosition = {

@@ -58,6 +58,7 @@ export interface RiskConfig {
   maxTotalExposureQuote: number;
   maxDailyLossPct: number;
   cooldownMinutes: number;
+  compoundInterest?: boolean;
 }
 
 export interface ExecutionConfig {
