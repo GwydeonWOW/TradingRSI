@@ -117,8 +117,9 @@ export async function runEvaluationCycle(): Promise<void> {
             }
             const raw = await response.json() as (string | number)[][];
             const closes = raw.map(k => parseFloat(k[4] as string));
+            const opens = raw.map(k => parseFloat(k[1] as string));
             const currentPrice = parseFloat(raw[raw.length - 1]![4] as string);
-            marketData = { symbol, timeframe, closes, currentPrice, timestamp: Date.now() };
+            marketData = { symbol, timeframe, closes, opens, currentPrice, timestamp: Date.now() };
             addEvent('binance_data', { symbol, timeframe, price: currentPrice, candles: raw.length });
           } catch (err) {
             addEvent('error', { message: 'Failed to fetch Binance data' });
@@ -769,9 +770,11 @@ function generateSimulationData(symbol: string, _timeframe: string): MarketData 
 
   // Generate 50 candles with random walk
   const closes: number[] = [base];
+  const opens: number[] = [base];
   for (let i = 1; i < 50; i++) {
     const volatility = 0.02;
     const change = closes[i - 1]! * volatility * (Math.random() - 0.5) * 2;
+    opens.push(closes[i - 1]!);
     closes.push(closes[i - 1]! + change);
   }
 
@@ -779,6 +782,7 @@ function generateSimulationData(symbol: string, _timeframe: string): MarketData 
     symbol,
     timeframe: _timeframe,
     closes,
+    opens,
     currentPrice: closes[closes.length - 1]!,
     timestamp: Date.now(),
   };

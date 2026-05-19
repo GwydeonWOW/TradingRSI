@@ -5,6 +5,7 @@ export interface MarketData {
   symbol: string;
   timeframe: string;
   closes: number[];
+  opens: number[];
   currentPrice: number;
   timestamp: number;
 }
@@ -118,6 +119,41 @@ export function evaluateSignal(
         };
       }
       reasons.push(`Price ${currentPrice} > SMA${entry.smaPeriod} ${smaValue.toFixed(2)} (confirmed)`);
+    }
+
+    // Trend confirmation: require N consecutive bullish candles (close > open)
+    if (entry.trendConfirmCandles && entry.trendConfirmCandles > 0) {
+      const n = entry.trendConfirmCandles;
+      const recentOpens = marketData.opens.slice(-n);
+      const recentCloses = closes.slice(-n);
+      if (recentOpens.length < n) {
+        reasons.push(`Not enough candles for trend confirmation (need ${n})`);
+        return {
+          signalType: 'HOLD',
+          rsiValue,
+          smaValue,
+          price: currentPrice,
+          symbol,
+          timeframe,
+          reasons,
+          timestamp: Date.now(),
+        };
+      }
+      const allBullish = recentCloses.every((c, i) => c > recentOpens[i]!);
+      if (!allBullish) {
+        reasons.push(`Trend confirmation failed: last ${n} candles not all bullish`);
+        return {
+          signalType: 'HOLD',
+          rsiValue,
+          smaValue,
+          price: currentPrice,
+          symbol,
+          timeframe,
+          reasons,
+          timestamp: Date.now(),
+        };
+      }
+      reasons.push(`Trend confirmed: last ${n} candles are bullish`);
     }
 
     // Multi-timeframe confirmation

@@ -51,6 +51,7 @@ describe('evaluateSignal', () => {
       symbol: 'BTCUSDT',
       timeframe: '1h',
       closes,
+      opens: closes,
       currentPrice: closes[closes.length - 1]!,
       timestamp: Date.now(),
     });
@@ -68,6 +69,7 @@ describe('evaluateSignal', () => {
       symbol: 'BTCUSDT',
       timeframe: '1h',
       closes,
+      opens: closes,
       currentPrice: closes[closes.length - 1]!,
       timestamp: Date.now(),
     });
@@ -84,6 +86,7 @@ describe('evaluateSignal', () => {
       symbol: 'BTCUSDT',
       timeframe: '1h',
       closes,
+      opens: closes,
       currentPrice: closes[closes.length - 1]!,
       timestamp: Date.now(),
     });
@@ -96,6 +99,7 @@ describe('evaluateSignal', () => {
       symbol: 'BTCUSDT',
       timeframe: '1h',
       closes: [100, 101],
+      opens: [100, 101],
       currentPrice: 101,
       timestamp: Date.now(),
     });

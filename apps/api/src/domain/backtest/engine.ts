@@ -78,6 +78,7 @@ interface SymbolRun {
   symbol: string;
   candles: BacktestCandle[];
   closesSoFar: number[];
+  opensSoFar: number[];
   openPositions: OpenPosition[];
   lastEntryTime: number;
 }
@@ -106,6 +107,7 @@ export function runMultiSymbolBacktest(
     symbol: sd.symbol,
     candles: sd.candles,
     closesSoFar: [],
+    opensSoFar: [],
     openPositions: [],
     lastEntryTime: 0,
   }));
@@ -128,6 +130,7 @@ export function runMultiSymbolBacktest(
     const run = runs[event.runIdx]!;
     const candle = run.candles[event.candleIdx]!;
     run.closesSoFar.push(candle.close);
+    run.opensSoFar.push(candle.open);
 
     // Warm-up phase: only build indicator data
     if (candle.openTime < params.startTimestampMs) continue;
@@ -186,6 +189,19 @@ export function runMultiSymbolBacktest(
         }
       }
 
+      // Trend confirmation
+      let trendBlocked = false;
+      if (buySignal && !smaBlocked && entry.trendConfirmCandles && entry.trendConfirmCandles > 0) {
+        const n = entry.trendConfirmCandles;
+        const recentOpens = run.opensSoFar.slice(-n);
+        const recentCloses = run.closesSoFar.slice(-n);
+        if (recentOpens.length < n) {
+          trendBlocked = true;
+        } else {
+          trendBlocked = !recentCloses.every((c, i) => c > recentOpens[i]!);
+        }
+      }
+
       // Cooldown check (from last ENTRY time)
       const cooldownMs = risk.cooldownMinutes * 60000;
       const inCooldown = run.lastEntryTime > 0 && (candle.openTime - run.lastEntryTime) < cooldownMs;
@@ -198,7 +214,7 @@ export function runMultiSymbolBacktest(
         && totalOpenPositions < risk.maxOpenPositions
         && totalExposure + risk.quoteAmountPerTrade <= risk.maxTotalExposureQuote;
 
-      if (buySignal && !smaBlocked && !inCooldown && withinLimits) {
+      if (buySignal && !smaBlocked && !trendBlocked && !inCooldown && withinLimits) {
         const investedQuote = Math.min(risk.quoteAmountPerTrade, cash);
         if (investedQuote > 0) {
           const commission = investedQuote * params.commissionRate;
@@ -292,10 +308,12 @@ export function runBacktest(
   let openPosition: OpenPosition | null = null;
 
   const closesSoFar: number[] = [];
+  const opensSoFar: number[] = [];
 
   for (let i = 0; i < candles.length; i++) {
     const candle = candles[i]!;
     closesSoFar.push(candle.close);
+    opensSoFar.push(candle.open);
 
     if (closesSoFar.length < minDataLength) {
       const equity = capital + unrealizedPnl(openPosition, candle.close);
@@ -349,7 +367,20 @@ export function runBacktest(
         }
       }
 
-      if (buySignal && !smaBlocked) {
+      // Trend confirmation
+      let trendBlocked = false;
+      if (buySignal && !smaBlocked && entry.trendConfirmCandles && entry.trendConfirmCandles > 0) {
+        const n = entry.trendConfirmCandles;
+        const recentOpens = opensSoFar.slice(-n);
+        const recentCloses = closesSoFar.slice(-n);
+        if (recentOpens.length < n) {
+          trendBlocked = true;
+        } else {
+          trendBlocked = !recentCloses.every((c, i) => c > recentOpens[i]!);
+        }
+      }
+
+      if (buySignal && !smaBlocked && !trendBlocked) {
         const investedQuote = Math.min(config.risk.quoteAmountPerTrade, capital);
         if (investedQuote > 0) {
           const commission = investedQuote * commissionRate;

@@ -39,8 +39,7 @@ export interface EntryConfig {
   multiTimeframeConditions?: TimeframeCondition[];
   useSmaFilter: boolean;
   smaPeriod: number;
-  useVolumeConfirmation?: boolean;
-  volumeMultiplier?: number;
+  trendConfirmCandles?: number;
 }
 
 export interface ExitConfig {

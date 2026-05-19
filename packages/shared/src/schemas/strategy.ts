@@ -16,8 +16,7 @@ export const EntryConfigSchema = z.object({
   multiTimeframeConditions: z.array(TimeframeConditionSchema).optional(),
   useSmaFilter: z.boolean(),
   smaPeriod: z.number().positive(),
-  useVolumeConfirmation: z.boolean().optional(),
-  volumeMultiplier: z.number().positive().optional(),
+  trendConfirmCandles: z.number().int().min(0).max(20).optional(),
 });
 
 export const ExitConfigSchema = z.object({

@@ -28,8 +28,7 @@ const defaultConfig: StrategyConfig = {
     requireMultiTimeframeConfirmation: true,
     useSmaFilter: true,
     smaPeriod: 200,
-    useVolumeConfirmation: false,
-    volumeMultiplier: 1.5,
+    trendConfirmCandles: 0,
   },
   exit: {
     rsiAbove: 70,
@@ -397,15 +396,16 @@ function StepEntry({ config, onUpdate }: { config: StrategyConfig; onUpdate: <K 
             </div>
           )}
           <label className="flex items-center gap-2 text-sm text-text-primary">
-            <input type="checkbox" checked={(entry.useVolumeConfirmation as boolean) ?? false}
-              onChange={(e) => onUpdate('entry', { ...config.entry, useVolumeConfirmation: e.target.checked } as any)} className="h-4 w-4 rounded border-border bg-bg-primary accent-accent" />
-            Confirmacion por volumen
+            <input type="checkbox" checked={(entry.trendConfirmCandles as number) > 0}
+              onChange={(e) => onUpdate('entry', { ...config.entry, trendConfirmCandles: e.target.checked ? 3 : 0 } as any)} className="h-4 w-4 rounded border-border bg-bg-primary accent-accent" />
+            Confirmacion de tendencia
           </label>
-          {(entry.useVolumeConfirmation as boolean) && (
+          {(entry.trendConfirmCandles as number) > 0 && (
             <div className="pl-6">
-              <label className={labelClass}>Multiplicador de volumen</label>
-              <input type="number" min={1} step={0.1} className={inputClass} value={(entry.volumeMultiplier as number) ?? 1.5}
-                onChange={(e) => onUpdate('entry', { ...config.entry, volumeMultiplier: Number(e.target.value) } as any)} />
+              <label className={labelClass}>Velas alcistas consecutivas</label>
+              <input type="number" min={1} max={20} className={inputClass} value={(entry.trendConfirmCandles as number) ?? 3}
+                onChange={(e) => onUpdate('entry', { ...config.entry, trendConfirmCandles: Number(e.target.value) } as any)} />
+              <p className="mt-1 text-xs text-text-muted">Requiere N velas consecutivas donde close &gt; open antes de comprar.</p>
             </div>
           )}
         </div>
@@ -583,7 +583,7 @@ function StepSummary({ config, name, description }: { config: StrategyConfig; na
           )}
           <div className="flex justify-between text-sm"><span className="text-text-muted">SMA Filter</span><span className="font-medium text-text-primary">{config.entry.useSmaFilter ? `Si (${config.entry.smaPeriod})` : 'No'}</span></div>
           <div className="flex justify-between text-sm"><span className="text-text-muted">Multi-TF</span><span className="font-medium text-text-primary">{config.entry.requireMultiTimeframeConfirmation ? 'Si' : 'No'}</span></div>
-          <div className="flex justify-between text-sm"><span className="text-text-muted">Vol. Confirmacion</span><span className="font-medium text-text-primary">{(entry.useVolumeConfirmation as boolean) ? `Si (${(entry.volumeMultiplier as number) ?? 1.5}x)` : 'No'}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-text-muted">Tendencia</span><span className="font-medium text-text-primary">{(entry.trendConfirmCandles as number) ? `${entry.trendConfirmCandles} velas` : 'No'}</span></div>
         </div>
       </div>
       <div className="rounded-md border border-border bg-bg-primary p-3">
