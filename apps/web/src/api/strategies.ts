@@ -52,6 +52,7 @@ export interface BacktestMetrics {
   winRate: number;
   totalPnl: number;
   totalPnlPct: number;
+  roi: number;
   maxDrawdown: number;
   profitFactor: number;
   avgTradeDuration: number;

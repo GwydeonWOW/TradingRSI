@@ -75,6 +75,7 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
     winRate: metrics?.winRate ?? 0,
     totalPnl: metrics?.totalPnl ?? 0,
     totalPnlPct: metrics?.totalPnlPct ?? 0,
+    roi: metrics?.roi ?? 0,
     maxDrawdown: metrics?.maxDrawdown ?? 0,
     profitFactor: metrics?.profitFactor ?? 0,
     sharpeRatio: metrics?.sharpeRatio ?? 0,
@@ -131,6 +132,12 @@ function MetricsGrid({ metrics }: { metrics: BacktestMetrics }) {
         <p className="text-sm text-text-secondary">Capital Final</p>
         <p className={`mt-1 text-2xl font-semibold ${pnlColor(m.finalCapital - 1000)}`}>
           {m.finalCapital.toFixed(2)} USDT
+        </p>
+      </div>
+      <div className={`rounded-lg border border-border bg-bg-secondary p-4 border-l-4 ${m.roi >= 0 ? 'border-l-success' : 'border-l-danger'}`}>
+        <p className="text-sm text-text-secondary">ROI</p>
+        <p className={`mt-1 text-2xl font-semibold ${pnlColor(m.roi)}`}>
+          {pnlSign(m.roi)}{m.roi.toFixed(2)}%
         </p>
       </div>
     </div>
@@ -620,9 +627,27 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
       {/* Results */}
       {result && (
         <div className="space-y-6">
-          <h2 className="text-sm font-medium text-text-secondary">
-            Resultados — {result.symbols?.join(', ') ?? '?'} ({result.trades.length} trades)
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-text-secondary">
+              Resultados — {result.symbols?.join(', ') ?? '?'} ({result.trades.length} trades)
+            </h2>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => exportBacktest(result, 'csv')}
+                className="rounded-md bg-bg-tertiary px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-bg-hover"
+              >
+                Exportar CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => exportBacktest(result, 'json')}
+                className="rounded-md bg-bg-tertiary px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-bg-hover"
+              >
+                Exportar JSON
+              </button>
+            </div>
+          </div>
           <MetricsGrid metrics={result.metrics} />
 
           {/* Per-symbol breakdown */}
@@ -790,6 +815,45 @@ function PastResultsTab() {
 }
 
 type Tab = 'run' | 'results';
+
+function exportBacktest(result: BacktestResult, format: 'csv' | 'json') {
+  const timestamp = new Date().toISOString().slice(0, 10);
+
+  if (format === 'json') {
+    const blob = new Blob([JSON.stringify({ metrics: result.metrics, trades: result.trades, equityCurve: result.equityCurve }, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, `backtest_${timestamp}.json`);
+    return;
+  }
+
+  const headers = ['Symbol', 'Entry Time', 'Exit Time', 'Side', 'Entry Price', 'Exit Price', 'Quantity', 'Invested', 'PnL', 'PnL %', 'Exit Reason', 'Entry RSI', 'Exit RSI'];
+  const rows = result.trades.map((t) => [
+    t.symbol ?? '',
+    new Date(t.entryTime).toISOString(),
+    new Date(t.exitTime).toISOString(),
+    t.side,
+    t.entryPrice,
+    t.exitPrice,
+    t.quantity,
+    t.investedQuote,
+    t.pnl,
+    t.pnlPct,
+    t.exitReason,
+    (t as any).entryRsi ?? '',
+    (t as any).exitRsi ?? '',
+  ]);
+  const csv = [headers.join(','), ...rows.map((r) => r.map((v) => `"${v}"`).join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  downloadBlob(blob, `backtest_${timestamp}.csv`);
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function BacktestsPage() {
   const [searchParams] = useSearchParams();

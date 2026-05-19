@@ -35,6 +35,7 @@ export interface BacktestMetrics {
   winRate: number;
   totalPnl: number;
   totalPnlPct: number;
+  roi: number;
   maxDrawdown: number;
   maxDrawdownDuration: number;
   profitFactor: number;
@@ -574,6 +575,7 @@ function calculateMetrics(
   const { maxDrawdown, maxDrawdownDuration } = calculateMaxDrawdown(equityCurve);
 
   const finalCapital = initialCapital + totalPnl;
+  const roi = initialCapital > 0 ? ((finalCapital - initialCapital) / initialCapital) * 100 : 0;
 
   return {
     totalTrades,
@@ -582,6 +584,7 @@ function calculateMetrics(
     winRate,
     totalPnl,
     totalPnlPct,
+    roi,
     maxDrawdown,
     maxDrawdownDuration,
     profitFactor,
