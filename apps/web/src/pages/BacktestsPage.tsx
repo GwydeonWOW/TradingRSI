@@ -273,7 +273,7 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes, initialCapital, 
             <th className="px-4 py-3 font-medium text-text-secondary">Lado</th>
             <th className="px-4 py-3 font-medium text-text-secondary">Precio Entrada</th>
             <th className="px-4 py-3 font-medium text-text-secondary">Precio Salida</th>
-            <th className="px-4 py-3 font-medium text-text-secondary">Cantidad</th>
+            <th className="px-4 py-3 font-medium text-text-secondary">Capital</th>
             <th className="px-4 py-3 font-medium text-text-secondary">PnL</th>
             <th className="px-4 py-3 font-medium text-text-secondary">PnL %</th>
             <th className="px-4 py-3 font-medium text-text-secondary">Balance</th>
@@ -302,7 +302,7 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes, initialCapital, 
                 </td>
                 <td className="px-4 py-2 text-text-primary font-mono">{smartPrice(t.entryPrice)}</td>
                 <td className="px-4 py-2 text-text-primary font-mono">{smartPrice(t.exitPrice)}</td>
-                <td className="px-4 py-2 text-text-primary font-mono">{smartPrice(t.quantity)}</td>
+                <td className="px-4 py-2 text-text-primary font-mono">{t.investedQuote.toFixed(2)}</td>
                 <td className={`px-4 py-2 font-medium ${pnlColor(t.pnl)}`}>
                   {pnlSign(t.pnl)}{t.pnl.toFixed(2)}
                 </td>
@@ -457,7 +457,7 @@ function RunBacktestTab({ preselectedStrategyId }: { preselectedStrategyId?: str
       strategiesApi.get(strategyId).then((res) => {
         const detail = res.data;
         if (detail.versions.length > 0) {
-          const latestVersion = detail.versions[detail.versions.length - 1]!;
+          const latestVersion = detail.versions[0]!;
           strategiesApi.getVersion(strategyId, latestVersion.id).then((vRes) => {
             const config = vRes.data.config;
             setStrategyConfig(config);
