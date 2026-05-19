@@ -48,6 +48,7 @@ export interface ExitConfig {
   stopLossPct: number | null;
   trailingStopPct: number | null;
   exitOnBearishDivergence?: boolean;
+  exitOnBearishCandle?: boolean;
 }
 
 export interface RiskConfig {

@@ -38,6 +38,7 @@ const defaultConfig: StrategyConfig = {
     stopLossPct: 3,
     trailingStopPct: null,
     exitOnBearishDivergence: false,
+    exitOnBearishCandle: false,
   },
   risk: {
     quoteAmountPerTrade: 25,
@@ -614,6 +615,21 @@ function StepExit({
           Salir en divergencia bajista
         </label>
       )}
+      <div className="rounded-md border border-border bg-bg-primary p-3 mt-4">
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-accent">Confirmacion de Salida</h3>
+        <p className="mb-3 text-xs text-text-muted">
+          Esperar a que la vela actual sea bajista (close &lt; open) antes de vender, incluso si RSI ya supero el umbral.
+        </p>
+        <label className="flex items-center gap-2 text-sm text-text-primary">
+          <input
+            type="checkbox"
+            checked={config.exit.exitOnBearishCandle ?? false}
+            onChange={(e) => onUpdate('exit', { ...config.exit, exitOnBearishCandle: e.target.checked })}
+            className="h-4 w-4 rounded border-border bg-bg-primary accent-accent"
+          />
+          Confirmar salida en vela bajista
+        </label>
+      </div>
     </div>
   );
 }
@@ -802,6 +818,7 @@ function StepSummary({
           {(config.entry.entryMode ?? 'rsi_threshold') === 'divergence' && (
             <SummaryRow label="Salida divergencia bajista" value={((config.exit as unknown as Record<string, unknown>).exitOnBearishDivergence as boolean) ? 'Si' : 'No'} />
           )}
+          <SummaryRow label="Confirmar en vela bajista" value={config.exit.exitOnBearishCandle ? 'Si' : 'No'} />
         </SummarySection>
 
         <SummarySection title="Riesgo y Capital">

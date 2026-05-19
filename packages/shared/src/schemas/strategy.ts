@@ -25,6 +25,7 @@ export const ExitConfigSchema = z.object({
   stopLossPct: z.number().positive().nullable(),
   trailingStopPct: z.number().positive().nullable(),
   exitOnBearishDivergence: z.boolean().optional(),
+  exitOnBearishCandle: z.boolean().optional(),
 });
 
 export const RiskConfigSchema = z.object({

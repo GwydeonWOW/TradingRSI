@@ -490,6 +490,9 @@ function checkExit(
   }
 
   if (rsiValue >= exit.rsiAbove) {
+    if (exit.exitOnBearishCandle && candle.close >= candle.open) {
+      return null;
+    }
     return buildTrade(position, candle, candle.close, 'signal', commissionRate);
   }
 

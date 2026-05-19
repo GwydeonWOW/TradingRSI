@@ -62,6 +62,24 @@ export function evaluateSignal(
 
   // Check SELL signal first (priority: exit existing positions)
   if (rsiValue >= exit.rsiAbove) {
+    // Exit on bearish candle: wait for close < open to confirm sell
+    if (exit.exitOnBearishCandle) {
+      const lastOpen = marketData.opens[marketData.opens.length - 1];
+      const lastClose = closes[closes.length - 1];
+      if (lastOpen !== undefined && lastClose !== undefined && lastClose >= lastOpen) {
+        reasons.push(`RSI ${rsiValue.toFixed(2)} >= ${exit.rsiAbove} but waiting for bearish candle confirmation`);
+        return {
+          signalType: 'HOLD',
+          rsiValue,
+          smaValue,
+          price: currentPrice,
+          symbol,
+          timeframe,
+          reasons,
+          timestamp: Date.now(),
+        };
+      }
+    }
     reasons.push(`RSI ${rsiValue.toFixed(2)} >= ${exit.rsiAbove} (sell threshold)`);
     return {
       signalType: 'SELL_SIGNAL',
