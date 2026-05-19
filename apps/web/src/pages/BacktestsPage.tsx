@@ -158,7 +158,8 @@ function TradesTable({ trades, symbol, interval, rsiTimeframes, initialCapital, 
     const t = trades[idx]!;
     const tradeSymbol = t.symbol || symbol;
     const padMs = 6 * 60 * 60 * 1000;
-    const displayStart = Math.floor((t.entryTime - padMs) / 1000);
+    const smaWarmupMs = intervalToMs(interval) * 200;
+    const displayStart = Math.floor((t.entryTime - smaWarmupMs) / 1000);
     const displayEnd = Math.floor((t.exitTime + padMs) / 1000);
     try {
       // Use pre-fetched candle data from the backtest engine (same data the engine used for decisions)
