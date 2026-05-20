@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createChart, createSeriesMarkers, type IChartApi, type ISeriesApi, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts';
+import { computeHHLL } from '../utils/hhll';
 
 export interface CandleData {
   time: number;
@@ -35,6 +36,9 @@ interface CandlestickChartProps {
 }
 
 export function CandlestickChart({ data, height = 400, showVolume = true, markers, liquidityScores, rsiSeries, tradeRange }: CandlestickChartProps) {
+  const [showSma, setShowSma] = useState(true);
+  const [showRsi, setShowRsi] = useState(true);
+  const [showHhll, setShowHhll] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const rsiContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -110,11 +114,20 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
       );
     }
 
-    // Markers (buy/sell signals)
-    if (markers && markers.length > 0) {
+    // Markers (buy/sell signals + HHLL patterns)
+    const allMarkers = [...(markers || [])];
+    if (showHhll) {
+      const hhll = computeHHLL(
+        data.map((d) => d.high),
+        data.map((d) => d.low),
+        data.map((d) => d.time),
+      );
+      allMarkers.push(...hhll);
+    }
+    if (allMarkers.length > 0) {
       createSeriesMarkers(
         candleSeries,
-        markers.map((m) => ({
+        allMarkers.map((m) => ({
           time: m.time as any,
           position: m.position,
           color: m.color,
@@ -125,23 +138,25 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
     }
 
     // SMA overlays
-    const closes = data.map((d) => d.close);
-    const sma50 = computeSma(closes, 50);
-    const sma200 = computeSma(closes, 200);
+    if (showSma) {
+      const closes = data.map((d) => d.close);
+      const sma50 = computeSma(closes, 50);
+      const sma200 = computeSma(closes, 200);
 
-    const sma50Series = chart.addSeries(LineSeries, {
-      color: '#fb9800', lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: 'SMA 50',
-    });
-    sma50Series.setData(
-      sma50.map((v, i) => ({ time: data[i]!.time as any, value: v })).filter((p) => !Number.isNaN(p.value)),
-    );
+      const sma50Series = chart.addSeries(LineSeries, {
+        color: '#fb9800', lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: 'SMA 50',
+      });
+      sma50Series.setData(
+        sma50.map((v, i) => ({ time: data[i]!.time as any, value: v })).filter((p) => !Number.isNaN(p.value)),
+      );
 
-    const sma200Series = chart.addSeries(LineSeries, {
-      color: '#f60c0c', lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: 'SMA 200',
-    });
-    sma200Series.setData(
-      sma200.map((v, i) => ({ time: data[i]!.time as any, value: v })).filter((p) => !Number.isNaN(p.value)),
-    );
+      const sma200Series = chart.addSeries(LineSeries, {
+        color: '#f60c0c', lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: 'SMA 200',
+      });
+      sma200Series.setData(
+        sma200.map((v, i) => ({ time: data[i]!.time as any, value: v })).filter((p) => !Number.isNaN(p.value)),
+      );
+    }
 
     // Liquidity score line
     if (liquidityScores && liquidityScores.length > 0) {
@@ -185,7 +200,7 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
 
     // RSI sub-chart
     let rsiChart: IChartApi | null = null;
-    const hasRsi = rsiSeries && rsiSeries.length > 0 && rsiSeries.some((s) => s.data.length > 0);
+    const hasRsi = showRsi && rsiSeries && rsiSeries.length > 0 && rsiSeries.some((s) => s.data.length > 0);
 
     if (rsiContainerRef.current && hasRsi) {
       rsiChart = createChart(rsiContainerRef.current, {
@@ -264,16 +279,17 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
       chart.remove();
       chartRef.current = null;
     };
-  }, [data, height, showVolume, markers, liquidityScores, rsiSeries, tradeRange]);
+  }, [data, height, showVolume, markers, liquidityScores, rsiSeries, tradeRange, showSma, showRsi, showHhll]);
 
   return (
     <div className="w-full rounded-lg overflow-hidden">
-      <div className="flex items-center gap-4 bg-[#0f1729] px-3 py-1">
-        <span className="text-xs font-medium text-[#fb9800]">SMA 50</span>
-        <span className="text-xs font-medium text-[#f60c0c]">SMA 200</span>
+      <div className="flex items-center gap-2 bg-[#0f1729] px-3 py-1">
+        <button onClick={() => setShowSma(!showSma)} className={`text-xs font-medium px-2 py-0.5 rounded cursor-pointer ${showSma ? 'text-[#fb9800] bg-[#fb980020]' : 'text-[#6b7280]'}`}>SMA</button>
+        <button onClick={() => setShowRsi(!showRsi)} className={`text-xs font-medium px-2 py-0.5 rounded cursor-pointer ${showRsi ? 'text-[#8b5cf6] bg-[#8b5cf620]' : 'text-[#6b7280]'}`}>RSI</button>
+        <button onClick={() => setShowHhll(!showHhll)} className={`text-xs font-medium px-2 py-0.5 rounded cursor-pointer ${showHhll ? 'text-[#10b981] bg-[#10b98120]' : 'text-[#6b7280]'}`}>HHLL</button>
       </div>
       <div ref={containerRef} />
-      {rsiSeries && rsiSeries.length > 0 && rsiSeries.some((s) => s.data.length > 0) && (
+      {showRsi && rsiSeries && rsiSeries.length > 0 && rsiSeries.some((s) => s.data.length > 0) && (
         <div>
           <div className="flex items-center gap-4 bg-[#0f1729] px-3 py-1">
             {rsiSeries.filter((s) => s.data.length > 0).map((s) => (

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   createChart,
   createSeriesMarkers,
@@ -12,6 +12,7 @@ import {
   type LineData,
   type Time,
 } from 'lightweight-charts';
+import { computeHHLL } from '../utils/hhll';
 
 export interface CandleData {
   time: number;
@@ -56,6 +57,9 @@ interface ChartState {
 }
 
 export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, markers }: MarketChartProps) {
+  const [showSma, setShowSma] = useState(true);
+  const [showRsi, setShowRsi] = useState(true);
+  const [showHhll, setShowHhll] = useState(false);
   const priceContainerRef = useRef<HTMLDivElement>(null);
   const rsiContainerRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<ChartState | null>(null);
@@ -191,13 +195,30 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
     }
     state.lastDataLen = data.length;
 
-    // Markers
-    if (markers && markers.length > 0) {
-      createSeriesMarkers(state.candleSeries, markers.map((m) => ({
+    // Markers (buy/sell + HHLL)
+    const allMarkers = [...(markers || [])];
+    if (showHhll) {
+      const hhll = computeHHLL(
+        data.map((d) => d.high),
+        data.map((d) => d.low),
+        data.map((d) => d.time),
+      );
+      allMarkers.push(...hhll);
+    }
+    if (allMarkers.length > 0) {
+      createSeriesMarkers(state.candleSeries, allMarkers.map((m) => ({
         time: m.time as Time, position: m.position, color: m.color, shape: m.shape, text: m.text,
       })));
     }
-  }, [data, markers]);
+  }, [data, markers, showHhll]);
+
+  // Toggle SMA visibility
+  useEffect(() => {
+    const state = stateRef.current;
+    if (!state) return;
+    state.sma50Series.applyOptions({ visible: showSma });
+    state.sma200Series.applyOptions({ visible: showSma });
+  }, [showSma]);
 
   // Update RSI data without recreating chart
   useEffect(() => {
@@ -216,13 +237,14 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
 
   return (
     <div className="w-full rounded-lg overflow-hidden">
-      <div className="flex items-center gap-4 bg-[#0f1729] px-3 py-1">
-        <span className="text-xs font-medium text-[#fb9800]">SMA 50</span>
-        <span className="text-xs font-medium text-[#f60c0c]">SMA 200</span>
+      <div className="flex items-center gap-2 bg-[#0f1729] px-3 py-1">
+        <button onClick={() => setShowSma(!showSma)} className={`text-xs font-medium px-2 py-0.5 rounded cursor-pointer ${showSma ? 'text-[#fb9800] bg-[#fb980020]' : 'text-[#6b7280]'}`}>SMA</button>
+        <button onClick={() => setShowRsi(!showRsi)} className={`text-xs font-medium px-2 py-0.5 rounded cursor-pointer ${showRsi ? 'text-[#8b5cf6] bg-[#8b5cf620]' : 'text-[#6b7280]'}`}>RSI</button>
+        <button onClick={() => setShowHhll(!showHhll)} className={`text-xs font-medium px-2 py-0.5 rounded cursor-pointer ${showHhll ? 'text-[#10b981] bg-[#10b98120]' : 'text-[#6b7280]'}`}>HHLL</button>
       </div>
       <div ref={priceContainerRef} />
       {rsiData && rsiData.length > 0 && (
-        <div>
+        <div style={{ display: showRsi ? 'block' : 'none' }}>
           <div className="flex items-center justify-between bg-[#0f1729] px-3 py-1">
             <span className="text-xs font-medium text-[#8b5cf6]">RSI (14)</span>
           </div>
