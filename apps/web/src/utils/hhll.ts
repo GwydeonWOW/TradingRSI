@@ -6,15 +6,19 @@ export interface HHLLMarker {
   text: string;
 }
 
+export interface HHLLResult {
+  markers: HHLLMarker[];
+  structureLine?: { value: number; color: string };
+}
+
 interface Pivot {
   index: number;
   value: number;
-  type: 'high' | 'low';
 }
 
 /**
  * Detects Higher High, Lower Low, Higher Low, Lower High patterns.
- * Ported from TradingView "Higher High Lower Low Strategy" Pine Script.
+ * Ported from TradingView Pine Script — tracks pivot highs and lows independently.
  */
 export function computeHHLL(
   highs: number[],
@@ -22,108 +26,105 @@ export function computeHHLL(
   times: number[],
   leftBars = 5,
   rightBars = 5,
-): HHLLMarker[] {
-  if (highs.length < leftBars + rightBars + 1) return [];
+): HHLLResult {
+  if (highs.length < leftBars + rightBars + 1) return { markers: [] };
 
-  const pivots = findPivots(highs, lows, leftBars, rightBars);
-  const zigzag = buildZigzag(pivots);
-  return detectPatterns(zigzag, times);
+  const pivotHighs = findPivotHighs(highs, leftBars, rightBars);
+  const pivotLows = findPivotLows(lows, leftBars, rightBars);
+  return detectPatterns(pivotHighs, pivotLows, times);
 }
 
-function findPivots(highs: number[], lows: number[], lb: number, rb: number): Pivot[] {
+function findPivotHighs(highs: number[], lb: number, rb: number): Pivot[] {
   const pivots: Pivot[] = [];
-
   for (let i = lb; i < highs.length - rb; i++) {
     let isHigh = true;
-    let isLow = true;
-
     for (let j = i - lb; j <= i + rb; j++) {
       if (j === i) continue;
-      if (highs[j]! > highs[i]!) isHigh = false;
-      if (lows[j]! < lows[i]!) isLow = false;
+      if (highs[j]! >= highs[i]!) { isHigh = false; break; }
     }
-
-    if (isHigh) pivots.push({ index: i, value: highs[i]!, type: 'high' });
-    else if (isLow) pivots.push({ index: i, value: lows[i]!, type: 'low' });
+    if (isHigh) pivots.push({ index: i, value: highs[i]! });
   }
-
   return pivots;
 }
 
-function buildZigzag(pivots: Pivot[]): Pivot[] {
-  const zz: Pivot[] = [];
-  for (const p of pivots) {
-    if (zz.length === 0) {
-      zz.push(p);
-      continue;
+function findPivotLows(lows: number[], lb: number, rb: number): Pivot[] {
+  const pivots: Pivot[] = [];
+  for (let i = lb; i < lows.length - rb; i++) {
+    let isLow = true;
+    for (let j = i - lb; j <= i + rb; j++) {
+      if (j === i) continue;
+      if (lows[j]! <= lows[i]!) { isLow = false; break; }
     }
-    const last = zz[zz.length - 1]!;
-    if (p.type === last.type) {
-      if (p.type === 'high' && p.value > last.value) zz[zz.length - 1] = p;
-      else if (p.type === 'low' && p.value < last.value) zz[zz.length - 1] = p;
-    } else {
-      zz.push(p);
-    }
+    if (isLow) pivots.push({ index: i, value: lows[i]! });
   }
-  return zz;
+  return pivots;
 }
 
-function detectPatterns(zz: Pivot[], times: number[]): HHLLMarker[] {
+function detectPatterns(pivotHighs: Pivot[], pivotLows: Pivot[], times: number[]): HHLLResult {
   const markers: HHLLMarker[] = [];
 
-  for (let i = 4; i < zz.length; i++) {
-    const a = zz[i]!;       // current
-    const b = zz[i - 1]!;   // previous
-    const c = zz[i - 2]!;   // 2nd previous (same type as a)
-    const d = zz[i - 3]!;   // 3rd previous
-    const e = zz[i - 4]!;   // 4th previous (same type as a)
+  // Compare consecutive pivot highs for HH / LH
+  for (let i = 1; i < pivotHighs.length; i++) {
+    const curr = pivotHighs[i]!;
+    const prev = pivotHighs[i - 1]!;
 
-    if (a.type === 'high') {
-      // Higher High: a > c (new high above previous high)
-      if (a.value > c.value && c.value > d.value) {
-        markers.push({
-          time: times[a.index]!,
-          position: 'aboveBar',
-          color: '#10b981',
-          shape: 'arrowDown',
-          text: 'HH',
-        });
-      }
-      // Lower High: a < c (new high below previous high)
-      if (a.value < c.value && c.value < d.value) {
-        markers.push({
-          time: times[a.index]!,
-          position: 'aboveBar',
-          color: '#ef4444',
-          shape: 'arrowDown',
-          text: 'LH',
-        });
-      }
-    }
-
-    if (a.type === 'low') {
-      // Higher Low: a > c (new low above previous low)
-      if (a.value > c.value && b.value > d.value) {
-        markers.push({
-          time: times[a.index]!,
-          position: 'belowBar',
-          color: '#10b981',
-          shape: 'arrowUp',
-          text: 'HL',
-        });
-      }
-      // Lower Low: a < c (new low below previous low)
-      if (a.value < c.value && b.value < d.value) {
-        markers.push({
-          time: times[a.index]!,
-          position: 'belowBar',
-          color: '#ef4444',
-          shape: 'arrowUp',
-          text: 'LL',
-        });
-      }
+    if (curr.value > prev.value) {
+      markers.push({
+        time: times[curr.index]!,
+        position: 'aboveBar',
+        color: '#10b981',
+        shape: 'arrowDown',
+        text: 'HH',
+      });
+    } else if (curr.value < prev.value) {
+      markers.push({
+        time: times[curr.index]!,
+        position: 'aboveBar',
+        color: '#ef4444',
+        shape: 'arrowDown',
+        text: 'LH',
+      });
     }
   }
 
-  return markers;
+  // Compare consecutive pivot lows for HL / LL
+  for (let i = 1; i < pivotLows.length; i++) {
+    const curr = pivotLows[i]!;
+    const prev = pivotLows[i - 1]!;
+
+    if (curr.value > prev.value) {
+      markers.push({
+        time: times[curr.index]!,
+        position: 'belowBar',
+        color: '#10b981',
+        shape: 'arrowUp',
+        text: 'HL',
+      });
+    } else if (curr.value < prev.value) {
+      markers.push({
+        time: times[curr.index]!,
+        position: 'belowBar',
+        color: '#ef4444',
+        shape: 'arrowUp',
+        text: 'LL',
+      });
+    }
+  }
+
+  // Structure line: horizontal line at the last pivot level
+  const lastHigh = pivotHighs[pivotHighs.length - 1];
+  const lastLow = pivotLows[pivotLows.length - 1];
+
+  let structureLine: HHLLResult['structureLine'];
+  if (lastHigh && lastLow) {
+    if (lastHigh.index > lastLow.index) {
+      // Last pivot is a high — bearish resistance
+      structureLine = { value: lastHigh.value, color: '#ef4444' };
+    } else {
+      // Last pivot is a low — bullish support
+      structureLine = { value: lastLow.value, color: '#10b981' };
+    }
+  }
+
+  return { markers, structureLine };
 }

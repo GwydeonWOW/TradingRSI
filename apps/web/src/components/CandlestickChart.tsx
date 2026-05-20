@@ -117,12 +117,22 @@ export function CandlestickChart({ data, height = 400, showVolume = true, marker
     // Markers (buy/sell signals + HHLL patterns)
     const allMarkers = [...(markers || [])];
     if (showHhll) {
-      const hhll = computeHHLL(
+      const { markers: hhllMarkers, structureLine } = computeHHLL(
         data.map((d) => d.high),
         data.map((d) => d.low),
         data.map((d) => d.time),
       );
-      allMarkers.push(...hhll);
+      allMarkers.push(...hhllMarkers);
+      if (structureLine) {
+        candleSeries.createPriceLine({
+          price: structureLine.value,
+          color: structureLine.color,
+          lineWidth: 1,
+          lineStyle: 2,
+          axisLabelVisible: true,
+          title: 'Structure',
+        });
+      }
     }
     if (allMarkers.length > 0) {
       createSeriesMarkers(

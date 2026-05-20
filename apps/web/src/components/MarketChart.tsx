@@ -198,18 +198,16 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
     // Markers (buy/sell + HHLL)
     const allMarkers = [...(markers || [])];
     if (showHhll) {
-      const hhll = computeHHLL(
+      const { markers: hhllMarkers } = computeHHLL(
         data.map((d) => d.high),
         data.map((d) => d.low),
         data.map((d) => d.time),
       );
-      allMarkers.push(...hhll);
+      allMarkers.push(...hhllMarkers);
     }
-    if (allMarkers.length > 0) {
-      createSeriesMarkers(state.candleSeries, allMarkers.map((m) => ({
-        time: m.time as Time, position: m.position, color: m.color, shape: m.shape, text: m.text,
-      })));
-    }
+    createSeriesMarkers(state.candleSeries, allMarkers.map((m) => ({
+      time: m.time as Time, position: m.position, color: m.color, shape: m.shape, text: m.text,
+    })));
   }, [data, markers, showHhll]);
 
   // Toggle SMA visibility

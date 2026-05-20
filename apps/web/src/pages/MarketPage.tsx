@@ -3,7 +3,7 @@ import { tradingApi } from '../api/trading.ts';
 import { liquidityApi, type BtcStabilityResult } from '../api/liquidity.ts';
 import { getSymbols } from '../api/config.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
-import { detectRSIDivergence, calculateRSI as calculateRSIFull } from '../utils/rsiDivergence.ts';
+import { calculateRSI as calculateRSIFull } from '../utils/rsiDivergence.ts';
 import { MarketChart } from '../components/MarketChart.tsx';
 
 const TIMEFRAMES = [
@@ -52,7 +52,6 @@ export function MarketPage() {
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1h');
   const [chartData, setChartData] = useState<{ time: number; open: number; high: number; low: number; close: number; volume: number }[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
-  const [showDivergence, setShowDivergence] = useState(true);
   const [btcStability, setBtcStability] = useState<BtcStabilityResult | null>(null);
 
   // Initialize prices from symbols
@@ -182,13 +181,6 @@ export function MarketPage() {
     const interval = setInterval(fetchBtcStability, 60000);
     return () => clearInterval(interval);
   }, [fetchBtcStability]);
-
-  const divergenceMarkers = useMemo(() => {
-    if (!showDivergence || chartData.length < 30) return undefined;
-    const times = chartData.map((d) => d.time);
-    const closes = chartData.map((d) => d.close);
-    return detectRSIDivergence(times, closes);
-  }, [chartData, showDivergence]);
 
   const rsiChartData: Array<{ time: number; value: number }> = useMemo(() => {
     if (chartData.length < 16) return [];
@@ -361,19 +353,6 @@ export function MarketPage() {
                     </button>
                   ))}
                 </div>
-                <div className="ml-2 border-l border-border pl-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowDivergence(!showDivergence)}
-                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-                      showDivergence
-                        ? 'bg-warning/20 text-warning'
-                        : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
-                    }`}
-                  >
-                    RSI Div
-                  </button>
-                </div>
               </div>
             </div>
             {chartLoading ? (
@@ -381,7 +360,7 @@ export function MarketPage() {
                 <LoadingSpinner />
               </div>
             ) : chartData.length > 0 ? (
-              <MarketChart data={chartData} rsiData={rsiChartData.length > 0 ? rsiChartData : undefined} height={400} rsiHeight={150} markers={divergenceMarkers} />
+              <MarketChart data={chartData} rsiData={rsiChartData.length > 0 ? rsiChartData : undefined} height={400} rsiHeight={150} />
             ) : (
               <p className="text-sm text-text-muted">Sin datos del gráfico.</p>
             )}
