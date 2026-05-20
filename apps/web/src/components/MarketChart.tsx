@@ -54,6 +54,8 @@ interface ChartState {
   syncCleanup: () => void;
   lastDataLen: number;
   lastRsiLen: number;
+  markerCollection: any;
+  structurePriceLine: any;
 }
 
 export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, markers }: MarketChartProps) {
@@ -136,7 +138,7 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
 
     stateRef.current = {
       priceChart, rsiChart, candleSeries, volumeSeries, sma50Series, sma200Series, rsiSeries, rsiAnchorSeries, syncCleanup,
-      lastDataLen: 0, lastRsiLen: 0,
+      lastDataLen: 0, lastRsiLen: 0, markerCollection: null, structurePriceLine: null,
     };
 
     const handleResize = () => {
@@ -196,16 +198,34 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
     state.lastDataLen = data.length;
 
     // Markers (buy/sell + HHLL)
+    if (state.markerCollection) {
+      state.markerCollection.detach();
+      state.markerCollection = null;
+    }
+    if (state.structurePriceLine) {
+      state.candleSeries.removePriceLine(state.structurePriceLine);
+      state.structurePriceLine = null;
+    }
     const allMarkers = [...(markers || [])];
     if (showHhll) {
-      const { markers: hhllMarkers } = computeHHLL(
+      const { markers: hhllMarkers, structureLine } = computeHHLL(
         data.map((d) => d.high),
         data.map((d) => d.low),
         data.map((d) => d.time),
       );
       allMarkers.push(...hhllMarkers);
+      if (structureLine) {
+        state.structurePriceLine = state.candleSeries.createPriceLine({
+          price: structureLine.value,
+          color: structureLine.color,
+          lineWidth: 1,
+          lineStyle: 2,
+          axisLabelVisible: true,
+          title: 'Structure',
+        });
+      }
     }
-    createSeriesMarkers(state.candleSeries, allMarkers.map((m) => ({
+    state.markerCollection = createSeriesMarkers(state.candleSeries, allMarkers.map((m) => ({
       time: m.time as Time, position: m.position, color: m.color, shape: m.shape, text: m.text,
     })));
   }, [data, markers, showHhll]);
