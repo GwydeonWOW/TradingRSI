@@ -55,7 +55,7 @@ interface ChartState {
   lastDataLen: number;
   lastRsiLen: number;
   markerCollection: any;
-  structurePriceLine: any;
+  pivotPriceLines: any[];
 }
 
 export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, markers }: MarketChartProps) {
@@ -138,7 +138,7 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
 
     stateRef.current = {
       priceChart, rsiChart, candleSeries, volumeSeries, sma50Series, sma200Series, rsiSeries, rsiAnchorSeries, syncCleanup,
-      lastDataLen: 0, lastRsiLen: 0, markerCollection: null, structurePriceLine: null,
+      lastDataLen: 0, lastRsiLen: 0, markerCollection: null, pivotPriceLines: [],
     };
 
     const handleResize = () => {
@@ -202,27 +202,28 @@ export function MarketChart({ data, rsiData, height = 400, rsiHeight = 150, mark
       state.markerCollection.detach();
       state.markerCollection = null;
     }
-    if (state.structurePriceLine) {
-      state.candleSeries.removePriceLine(state.structurePriceLine);
-      state.structurePriceLine = null;
+    for (const pl of state.pivotPriceLines) {
+      state.candleSeries.removePriceLine(pl);
     }
+    state.pivotPriceLines = [];
     const allMarkers = [...(markers || [])];
     if (showHhll) {
-      const { markers: hhllMarkers, structureLine } = computeHHLL(
+      const { markers: hhllMarkers, pivotLines } = computeHHLL(
         data.map((d) => d.high),
         data.map((d) => d.low),
         data.map((d) => d.time),
       );
       allMarkers.push(...hhllMarkers);
-      if (structureLine) {
-        state.structurePriceLine = state.candleSeries.createPriceLine({
-          price: structureLine.value,
-          color: structureLine.color,
-          lineWidth: 1,
-          lineStyle: 2,
+      for (const line of pivotLines) {
+        const pl = state.candleSeries.createPriceLine({
+          price: line.price,
+          color: line.color,
+          lineWidth: 2,
+          lineStyle: 1,
           axisLabelVisible: true,
-          title: 'Structure',
+          title: line.price.toFixed(2),
         });
+        state.pivotPriceLines.push(pl);
       }
     }
     state.markerCollection = createSeriesMarkers(state.candleSeries, allMarkers.map((m) => ({

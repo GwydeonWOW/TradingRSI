@@ -6,9 +6,14 @@ export interface HHLLMarker {
   text: string;
 }
 
+export interface PivotLine {
+  price: number;
+  color: string;
+}
+
 export interface HHLLResult {
   markers: HHLLMarker[];
-  structureLine?: { value: number; color: string };
+  pivotLines: PivotLine[];
 }
 
 interface Pivot {
@@ -27,7 +32,7 @@ export function computeHHLL(
   leftBars = 5,
   rightBars = 5,
 ): HHLLResult {
-  if (highs.length < leftBars + rightBars + 1) return { markers: [] };
+  if (highs.length < leftBars + rightBars + 1) return { markers: [], pivotLines: [] };
 
   const pivotHighs = findPivotHighs(highs, leftBars, rightBars);
   const pivotLows = findPivotLows(lows, leftBars, rightBars);
@@ -111,20 +116,20 @@ function detectPatterns(pivotHighs: Pivot[], pivotLows: Pivot[], times: number[]
     }
   }
 
-  // Structure line: horizontal line at the last pivot level
-  const lastHigh = pivotHighs[pivotHighs.length - 1];
-  const lastLow = pivotLows[pivotLows.length - 1];
+  // Horizontal dotted lines at each pivot level
+  const pivotLines: PivotLine[] = [];
 
-  let structureLine: HHLLResult['structureLine'];
-  if (lastHigh && lastLow) {
-    if (lastHigh.index > lastLow.index) {
-      // Last pivot is a high — bearish resistance
-      structureLine = { value: lastHigh.value, color: '#ef4444' };
-    } else {
-      // Last pivot is a low — bullish support
-      structureLine = { value: lastLow.value, color: '#10b981' };
-    }
+  for (let i = 1; i < pivotHighs.length; i++) {
+    const curr = pivotHighs[i]!;
+    const prev = pivotHighs[i - 1]!;
+    pivotLines.push({ price: curr.value, color: curr.value > prev.value ? '#10b981' : '#ef4444' });
   }
 
-  return { markers, structureLine };
+  for (let i = 1; i < pivotLows.length; i++) {
+    const curr = pivotLows[i]!;
+    const prev = pivotLows[i - 1]!;
+    pivotLines.push({ price: curr.value, color: curr.value > prev.value ? '#10b981' : '#ef4444' });
+  }
+
+  return { markers, pivotLines };
 }
