@@ -6,14 +6,8 @@ export interface HHLLMarker {
   text: string;
 }
 
-export interface PivotLine {
-  price: number;
-  color: string;
-}
-
 export interface HHLLResult {
   markers: HHLLMarker[];
-  pivotLines: PivotLine[];
 }
 
 interface Pivot {
@@ -32,7 +26,7 @@ export function computeHHLL(
   leftBars = 5,
   rightBars = 5,
 ): HHLLResult {
-  if (highs.length < leftBars + rightBars + 1) return { markers: [], pivotLines: [] };
+  if (highs.length < leftBars + rightBars + 1) return { markers: [] };
 
   const pivotHighs = findPivotHighs(highs, leftBars, rightBars);
   const pivotLows = findPivotLows(lows, leftBars, rightBars);
@@ -68,7 +62,6 @@ function findPivotLows(lows: number[], lb: number, rb: number): Pivot[] {
 function detectPatterns(pivotHighs: Pivot[], pivotLows: Pivot[], times: number[]): HHLLResult {
   const markers: HHLLMarker[] = [];
 
-  // Compare consecutive pivot highs for HH / LH
   for (let i = 1; i < pivotHighs.length; i++) {
     const curr = pivotHighs[i]!;
     const prev = pivotHighs[i - 1]!;
@@ -92,7 +85,6 @@ function detectPatterns(pivotHighs: Pivot[], pivotLows: Pivot[], times: number[]
     }
   }
 
-  // Compare consecutive pivot lows for HL / LL
   for (let i = 1; i < pivotLows.length; i++) {
     const curr = pivotLows[i]!;
     const prev = pivotLows[i - 1]!;
@@ -116,20 +108,5 @@ function detectPatterns(pivotHighs: Pivot[], pivotLows: Pivot[], times: number[]
     }
   }
 
-  // Horizontal dotted lines at each pivot level
-  const pivotLines: PivotLine[] = [];
-
-  for (let i = 1; i < pivotHighs.length; i++) {
-    const curr = pivotHighs[i]!;
-    const prev = pivotHighs[i - 1]!;
-    pivotLines.push({ price: curr.value, color: curr.value > prev.value ? '#10b981' : '#ef4444' });
-  }
-
-  for (let i = 1; i < pivotLows.length; i++) {
-    const curr = pivotLows[i]!;
-    const prev = pivotLows[i - 1]!;
-    pivotLines.push({ price: curr.value, color: curr.value > prev.value ? '#10b981' : '#ef4444' });
-  }
-
-  return { markers, pivotLines };
+  return { markers };
 }
